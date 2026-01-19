@@ -1,5 +1,6 @@
 import Friend from "../models/Friend.js";
 import User from "../models/User.js";
+import Conversation from "../models/Conversation.js";
 
 const pair = (a, b) => (a < b ? [a, b] : [b, a]);
 
@@ -52,7 +53,7 @@ export const checkFriendship = async (req, res, next) => {
 
 export const checkGroupMembership = async (req, res, next) => {
   try {
-    const { conversationId } = req.params;
+    const { conversationId } = req.body;
     const senderId = req.user._id;
     const conversation = await Conversation.findOne({ _id: conversationId });
     if (!conversation) {
@@ -75,6 +76,6 @@ export const checkGroupMembership = async (req, res, next) => {
     return next();
   } catch (error) {
     console.error("Error in checkGroupMembership middleware", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };

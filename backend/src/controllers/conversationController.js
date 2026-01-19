@@ -42,7 +42,7 @@ export const createConversation = async (req, res) => {
     }
 
     // Nếu là nhóm thì tạo nhóm mới
-    if ((type = "group")) {
+    if ((type == "group")) {
       conversation = await Conversation.create({
         type: "group",
         participants: [
@@ -68,7 +68,7 @@ export const createConversation = async (req, res) => {
     return res.status(201).json({ conversation });
   } catch (error) {
     console.error("Error creating conversation", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
@@ -119,6 +119,7 @@ export const getMessages = async (req, res) => {
       .limit(limit + 1)
       .sort({ createdAt: -1 });
     const hasMore = messages.length > limit;
+    let nextCursor = null;
     if (hasMore) {
       nextCursor = messages[messages.length - 1].createdAt.toISOString();
       messages.pop();
@@ -127,6 +128,6 @@ export const getMessages = async (req, res) => {
     return res.status(200).json({ messages, nextCursor });
   } catch (error) {
     console.error("Error getting messages", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };

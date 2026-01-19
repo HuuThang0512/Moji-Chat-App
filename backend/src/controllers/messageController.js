@@ -1,3 +1,4 @@
+import e from "express";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
@@ -83,6 +84,6 @@ export const sendGroupMessage = async (req, res) => {
     return res.status(201).json({ newMessage });
   } catch (error) {
     console.error("Error sending group message", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };

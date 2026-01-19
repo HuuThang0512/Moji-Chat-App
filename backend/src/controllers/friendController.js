@@ -10,7 +10,7 @@ export const sendFriendRequest = async (req, res) => {
     const { to, message } = req.body;
     const from = req.user._id;
 
-    if (from === to) {
+    if (from.toString() === to.toString()) {
       return res
         .status(400)
         .json({ message: "You cannot send friend request to yourself" });
@@ -64,7 +64,6 @@ export const acceptFriendRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const userId = req.user._id;
-
     const friendRequest = await FriendRequest.findById(requestId);
     if (!friendRequest) {
       return res.status(404).json({ message: "Friend request not found" });
