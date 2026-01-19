@@ -1,26 +1,17 @@
-import Logout from "@/components/auth/Logout";
-import { Button } from "@/components/ui/button";
-import api from "@/lib/axios";
-import { useAuthStore } from "@/stores/useAuthStore";
+
 import React from "react";
-import { toast } from "sonner";
+import { AppSidebar } from "@/components/sidebar/app-sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import ChatWindowLayout from "@/components/chat/ChatWindowLayout";
 
 const ChatAppPage = () => {
-  const user = useAuthStore((state) => state.user);
-  const handleOnClickTest = async () => {
-    try {
-      await api.get("/users/test");
-      toast.success("Test successful");
-    } catch (error) {
-      toast.error("Failed to test");
-    }
-  }
   return (
-    <div>
-      {user && <div>Welcome {user.displayName}</div>}
-      <Logout />
-      <Button onClick={handleOnClickTest}>Test</Button>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <div className="flex h-screen w-full p-2">
+        <ChatWindowLayout />
+      </div>
+    </SidebarProvider>
   );
 };
 
