@@ -51,6 +51,7 @@ export const createConversation = async (req, res) => {
         ],
         group: { name: name, createdBy: senderId },
         lastMessageAt: new Date(),
+        unreadCount: new Map(),
       });
       await conversation.save();
     }
@@ -93,9 +94,13 @@ export const getConversations = async (req, res) => {
         avatarUrl: p.userId?.avatarUrl ?? null,
         joinedAt: p.joinedAt,
       }));
+      const conversationObject = convo.toObject({ flattenMaps: true });
+      // const unreadCount = conversationObject.unreadCount ?? {};
+      // const lastMessage = conversationObject.lastMessage ?? null;
       return {
-        ...convo.toObject(),
-        unreadCount: convo.unreadCount ?? {},
+        ...conversationObject,
+        // unreadCount,
+        // lastMessage,
         participants: paticipants,
       };
     });

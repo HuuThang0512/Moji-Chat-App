@@ -1,17 +1,24 @@
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useChatStore } from "@/stores/useChatStore";
 import React, { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
 const ProtectedRoute = () => {
   const { accessToken, user, loading, refresh, fetchMe } = useAuthStore();
+  const { fetchConversations } = useChatStore();
   const [starting, setStarting] = useState(true);
   const init = async () => {
     if (!accessToken) {
       await refresh();
     }
-
-    if (accessToken && !user) {
+    const { accessToken: tokenAfterRefresh, user: userAfterRefresh } =
+      useAuthStore.getState();
+    if (tokenAfterRefresh && !userAfterRefresh) {
       await fetchMe();
+    }
+    const { conversations } = useChatStore.getState();
+    if (tokenAfterRefresh && (!conversations || conversations.length === 0)) {
+      await fetchConversations();
     }
     setStarting(false);
   };
