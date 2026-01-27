@@ -112,24 +112,42 @@ export const getConversations = async (req, res) => {
 };
 
 export const getMessages = async (req, res) => {
+  /**
+   * Giải thích đoạn code:
+   * Đây là hàm lấy danh sách tin nhắn cho một cuộc trò chuyện với phân trang (cursor-based pagination).
+   * 
+   * 1. Lấy conversationId từ tham số đường dẫn (req.params), lấy limit (mặc định 50) và cursor (thời gian tin nhắn) từ query string.
+   * 2. Tạo query để tìm các tin nhắn thuộc conversationId đã cho.
+   *    - Nếu có cursor, chỉ lấy các tin nhắn có createdAt nhỏ hơn cursor (tức là các tin nhắn cũ hơn cursor).
+   * 3. Tìm các tin nhắn theo query, sắp xếp giảm dần theo createdAt (tin nhắn mới nhất trước), 
+   *    và lấy limit + 1 tin nhắn (để kiểm tra còn tin nhắn cũ hơn nữa không).
+   * 4. Kiểm tra nếu có nhiều hơn limit tin nhắn, nghĩa là còn trang sau:
+   *    - nextCursor sẽ là createdAt của tin nhắn cuối cùng (dùng cho lần truy vấn tiếp theo).
+   *    - Xóa tin nhắn thừa ra khỏi danh sách trả về cho client.
+   * 5. Đảo ngược mảng tin nhắn trước khi trả về để client hiển thị đúng thứ tự tăng dần thời gian.
+   * 6. Trả về JSON gồm messages và nextCursor (nếu có tiếp).
+   */
+
   try {
-    const { conversationId } = req.params;
-    const { limit = 50, cursor } = req.query;
+    const { conversationId } = req.params; // Lấy conversationId từ URL
+    const { limit = 50, cursor } = req.query; // limit mặc định là 50, cursor là mốc thời gian
     const query = { conversationId };
     if (cursor) {
+      // Nếu có cursor thì chỉ lấy các tin nhắn cũ hơn nó
       query.createdAt = { $lt: new Date(cursor) };
     }
     let messages = await Message.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }) // Sắp xếp mới nhất trước
+      .limit(Number(limit) + 1); // Lấy thừa 1 tin nhắn để kiểm tra còn nữa không
+
     const hasMore = messages.length > limit;
     let nextCursor = null;
     if (hasMore) {
+      // Nếu còn trang sau thì trả về cursor cho lần sau, và bỏ tin nhắn thừa đi
       nextCursor = messages[messages.length - 1].createdAt.toISOString();
       messages.pop();
     }
-    messages.reverse();
+    messages.reverse(); // Đảo thứ tự lại cho client hiện thị từ cũ đến mới
     return res.status(200).json({ messages, nextCursor });
   } catch (error) {
     console.error("Error getting messages", error);

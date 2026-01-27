@@ -14,7 +14,7 @@ interface GroupChatCardProps {
 const GroupChatCard = (props: GroupChatCardProps) => {
   const { convo } = props;
   const { user } = useAuthStore();
-  const { activeConversationId, setActiveConversationId, messages } = useChatStore();
+  const { activeConversationId, setActiveConversationId, messages, fetchMessages } = useChatStore();
 
   if (!user) return null;
 
@@ -23,7 +23,7 @@ const GroupChatCard = (props: GroupChatCardProps) => {
   const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
     if (!messages[id]) {
-      // todo: fetch messages
+      fetchMessages(id);
     }
   }
 

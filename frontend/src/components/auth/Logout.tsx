@@ -5,17 +5,17 @@ import { Button } from '../ui/button';
 import { LogOut } from 'lucide-react';
 
 const Logout = () => {
-    const { signOut } = useAuthStore();
-    const navigate = useNavigate();
+  const { signOut } = useAuthStore();
+  const navigate = useNavigate();
 
-    const handleLogout = async () => {
-        const success = await signOut();
-        if (success) {
-            navigate("/signin");
-        }
+  const handleLogout = async () => {
+    const success = await signOut();
+    if (success) {
+      navigate("/signin");
     }
+  }
   return (
-    <Button variant="completeGhost" onClick={handleLogout}><LogOut className="text-destructive"/> Log out</Button>
+    <Button variant="completeGhost" onClick={handleLogout}><LogOut className="text-destructive" /> Log out</Button>
   )
 }
 
