@@ -23,7 +23,7 @@ const GroupChatCard = (props: GroupChatCardProps) => {
   const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
     if (!messages[id]) {
-      fetchMessages(id);
+      await fetchMessages(id);
     }
   }
 

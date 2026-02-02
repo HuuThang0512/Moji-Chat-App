@@ -28,7 +28,7 @@ const ChatWindowLayout = (props: Props) => {
       <div className="flex-1 overflow-y-auto bg-primary-foreground"><ChatWindowBody /></div>
 
       {/* Footer */}
-      <MessageInput />
+      <MessageInput selectedConvo={selectedConvo} />
     </SidebarInset>
 
   )

@@ -38,8 +38,9 @@ export const useChatStore = create<ChatState>()(
         if (!convoId) return;
 
         const current = messages?.[convoId]
-        const nextCursor = current?.nextCursor === undefined ? "" : current?.nextCursor;
-        if (!nextCursor) return;
+        if (current && !current.hasMore) return;
+
+        const nextCursor = current?.nextCursor ?? "";
 
         set({ messagesLoading: true });
         try {

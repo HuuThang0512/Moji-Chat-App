@@ -33,6 +33,7 @@
     "react-router-dom": "^7.12.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
+    "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^4.1.18",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.3.5",
