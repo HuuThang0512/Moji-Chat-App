@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { ChatState } from "@/types/store";
 import { chatService } from "@/services/chatService";
 import { useAuthStore } from "./useAuthStore";
+import { toast } from "sonner";
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -86,7 +87,38 @@ export const useChatStore = create<ChatState>()(
         } finally {
           set({ messagesLoading: false });
         }
-      }
+      },
+
+      sendDirectMessage: async (recipientId: string, content: string, imgUrl?: string, conversationId?: string): Promise<void> => {
+        try {
+          const {activeConversationId} = get();
+          await chatService.sendDirectMessage(recipientId, content, imgUrl, activeConversationId ?? conversationId ?? undefined);
+
+          set((state) => (
+            {
+              conversations: state.conversations.map((c) => c._id === activeConversationId ? {...c, seenBy: []} : c)
+            }
+          ))
+        } catch (error) {
+          console.error("Error sending direct message", error);
+          toast.error("Failed to send direct message");
+        }
+      },
+      sendGroupMessage: async (conversationId: string, content: string, imgUrl?: string): Promise<void> => {
+        try {
+          await chatService.sendGroupMessage(conversationId, content, imgUrl);
+
+          set((state) => (
+            {
+              conversations: state.conversations.map((c) => c._id === conversationId ? {...c, seenBy: []} : c)
+            }
+          ))
+        } catch (error) {
+          console.error("Error sending group message", error);
+          toast.error("Failed to send group message");
+        }
+      },
+
     }), {
     name: "chat-storage",
     partialize: (state) => ({

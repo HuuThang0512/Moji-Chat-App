@@ -35,7 +35,7 @@ const MessageItem = (props: MessageItemProps) => {
       )}
 
       {/* message */}
-      <div className={cn("max-w-xs lg:max-w-md space-y-1 flex flex-col", message.isOwn ? "justify-end" : "justify-start")}>
+      <div className={cn("max-w-xs lg:max-w-md space-y-1 flex flex-col mt-1", message.isOwn ? "justify-end" : "justify-start")}>
         <Card className={cn("p-3", message.isOwn ? "chat-bubble-sent border-0" : "chat-bubble-received border-0")}>
           <p className="text-sm leading-relaxed wrap-break-words">{message.content}</p>
         </Card>

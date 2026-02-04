@@ -3,7 +3,7 @@ import { useChatStore } from '@/stores/useChatStore'
 import GroupChatCard from './GroupChatCard'
 
 const GroupChatList = () => {
-  const { conversations, loading } = useChatStore();
+  const { conversations, conversationLoading: loading } = useChatStore();
   if (!conversations || conversations.length === 0) {
     return;
   }

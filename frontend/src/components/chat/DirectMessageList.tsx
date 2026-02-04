@@ -3,7 +3,7 @@ import { useChatStore } from '@/stores/useChatStore'
 import DirectMessageCard from './DirectMessageCard';
 
 const DirectMessageList = () => {
-  const { conversations, loading } = useChatStore();
+  const { conversations, messagesLoading: loading } = useChatStore();
   if (!conversations || conversations.length === 0) {
     return;
   }

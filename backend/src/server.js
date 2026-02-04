@@ -4,6 +4,7 @@ import { connectDB } from "./libs/db.js";
 import cookieParser from "cookie-parser";
 import { protectedRoute } from "./middlewares/authMiddleware.js";
 import cors from "cors";
+import { app, server } from "./socket/index.js";
 
 // Routes
 import authRoute from "./routes/authRoute.js";
@@ -14,7 +15,6 @@ import conversationRoute from "./routes/conversationRoute.js";
 
 dotenv.config(); // Load các biến môi trường
 
-const app = express();
 const port = process.env.PORT || 5001;
 
 app.use(express.json()); // Parse JSON request bodies
@@ -37,7 +37,7 @@ app.use('/api/messages', messageRoute);
 app.use('/api/conversations', conversationRoute);
 
 connectDB().then(() => {
-  app.listen(port, () => {
+  server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });
 });

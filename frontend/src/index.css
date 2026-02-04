@@ -282,7 +282,7 @@
 
   /* Scroll bar */
   .beautiful-scrollbar {
-    @apply scrollbar-thin scrollbar-thumb-slate/300 scrollbar-track-transparent hover:scrollbar-thumb-primary/70 dark:scrollbar-thumb-slate-600;
+    @apply scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 dark:scrollbar-thumb-slate-600;
   }
 
   /* Animations */
