@@ -3,6 +3,7 @@ import { io,type Socket } from "socket.io-client";
 import { useAuthStore } from "./useAuthStore";
 import type { SocketState } from "@/types/store";
 import { useChatStore } from "./useChatStore";
+import type { Conversation } from "@/types/chat";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
 
@@ -59,7 +60,7 @@ export const useSocketStore = create<SocketState>((set,get) => ({
         // Đánh dấu đã đọc
       }
 
-      useChatStore.getState().updateConversation(updatedConversation);
+      useChatStore.getState().updateConversation(updatedConversation as Conversation);
     })
   },
   disconnectSocket: () => {
