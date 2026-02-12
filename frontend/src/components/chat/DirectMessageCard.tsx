@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import UserAvatar from './UserAvatar';
 import StatusBadge from './StatusBadge';
 import UnreadCountBadge from './UnreadCountBadge';
+import { useSocketStore } from '@/stores/useSocketStore';
 
 interface DirectMessageCardProps {
   convo: Conversation;
@@ -17,6 +18,8 @@ const DirectMessageCard = (props: DirectMessageCardProps) => {
   const { convo } = props;
   const { user } = useAuthStore();
   const { activeConversationId, setActiveConversationId, messages, fetchMessages } = useChatStore();
+  const { onlineUsers } = useSocketStore();
+  console.log(onlineUsers);
 
   if (!user) return null;
 
@@ -37,7 +40,7 @@ const DirectMessageCard = (props: DirectMessageCardProps) => {
 
       <UserAvatar name={otherUser.displayName ?? ""} avatarUrl={otherUser.avatarUrl ?? undefined} type="sidebar" />
       {/* todo: socketIO */}
-      <StatusBadge status="offline" />
+      <StatusBadge status={onlineUsers.includes(otherUser?._id ?? "") ? "online" : "offline"} />
       {unreadCount > 0 && <UnreadCountBadge unreadCount={unreadCount} />}
     </>} subTitle={<p className={cn("text-sm truncate", unreadCount > 0 ? "font medium text-foreground" : "text-muted-foreground")}>{lastMessage}</p>} />
   )

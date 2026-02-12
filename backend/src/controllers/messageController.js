@@ -2,8 +2,8 @@ import e from "express";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
-
-import { updateConversationAfterCreateMessage } from "../utils/messageHelper.js";
+import { io } from "../socket/index.js";
+import { emitNewMessage, updateConversationAfterCreateMessage } from "../utils/messageHelper.js";
 
 /**
  * Xử lý khi gửi tin nhắn riêng
@@ -46,6 +46,9 @@ export const sendDirectMessage = async (req, res) => {
     // Xử lý data conversation sau khi tạo message mới
     updateConversationAfterCreateMessage(conversation, newMessage, senderId);
     await conversation.save();
+
+    emitNewMessage(io, conversation, newMessage);
+
     return res.status(201).json({ newMessage });
   } catch (error) {
     console.error("Error sending direct message", error);
@@ -81,6 +84,7 @@ export const sendGroupMessage = async (req, res) => {
       senderId
     );
     await conversation.save();
+    emitNewMessage(io, conversation, newMessage);
     return res.status(201).json({ newMessage });
   } catch (error) {
     console.error("Error sending group message", error);

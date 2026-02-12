@@ -4,6 +4,7 @@ import type { ChatState } from "@/types/store";
 import { chatService } from "@/services/chatService";
 import { useAuthStore } from "./useAuthStore";
 import { toast } from "sonner";
+import type { Conversation, Message } from "@/types/chat";
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -119,6 +120,45 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
+      addMessage: async (message: Message): Promise<void> => {
+        try {
+          const {user} = useAuthStore.getState();
+          const {fetchMessages} = get();
+          const convoId = message.conversationId;
+
+          message.isOwn = message.senderId === user?._id;
+          let prevMessages = get().messages[convoId]?.items ?? [];
+
+          if (prevMessages.length === 0) {
+            await fetchMessages(convoId);
+            prevMessages = get().messages[convoId]?.items ?? [];
+          } 
+
+          set((state) => {
+            if (prevMessages.some((m) => m._id === message._id)) return state;
+
+            return ({
+              messages: {
+                ...state.messages,
+                [convoId]: {
+                  items: [...prevMessages, message],
+                  hasMore: state.messages[convoId]?.hasMore ?? false,
+                  nextCursor: state.messages[convoId]?.nextCursor ?? null
+                }
+              }
+            })
+          })
+
+        } catch (error) {
+          console.error("Error adding message", error);
+        }
+      },
+
+      updateConversation: (conversation: Conversation): void => {
+        set((state) => ({
+          conversations: state.conversations.map((c) => c._id === conversation._id ? conversation : c)
+        }))
+      },
     }), {
     name: "chat-storage",
     partialize: (state) => ({

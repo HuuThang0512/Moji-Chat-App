@@ -1,4 +1,3 @@
-import React from 'react'
 import type { Conversation, Participant } from '@/types/chat'
 import { useChatStore } from '@/stores/useChatStore'
 import { SidebarTrigger } from '../ui/sidebar'
@@ -7,10 +6,12 @@ import { Separator } from '../ui/separator'
 import UserAvatar from './UserAvatar'
 import GroupChatAvatar from './GroupChatAvatar'
 import StatusBadge from './StatusBadge'
+import { useSocketStore } from '@/stores/useSocketStore'
 
 const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
   const { conversations, activeConversationId } = useChatStore();
   const { user } = useAuthStore();
+  const { onlineUsers } = useSocketStore();
   let otherUser: Participant | null = null;
 
   chat = chat ?? conversations.find(c => c._id === activeConversationId);
@@ -34,10 +35,10 @@ const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
         <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
         <div className="p-2 w-full flex items-center gap-3">
           {/* avatar */}
-          <div className="ralative">
+          <div className="relative inline-block">
             {chat.type === "direct" ? <><UserAvatar name={otherUser?.displayName ?? "Moji"} avatarUrl={otherUser?.avatarUrl ?? undefined} type="sidebar" />
               {/* todo: socketIO */}
-              <StatusBadge status="offline" /></> : <GroupChatAvatar participants={chat.participants} type="sidebar" />}
+              <StatusBadge status={onlineUsers.includes(otherUser?._id ?? "") ? "online" : "offline"} /></> : <GroupChatAvatar participants={chat.participants} type="sidebar" />}
           </div>
           {/* name */}
           <h2 className="font-semibold text-foreground truncate">{chat.type === "direct" ? otherUser?.displayName ?? "Moji" : chat.group?.name ?? "Group Chat"}</h2>

@@ -7,7 +7,7 @@ export const createConversation = async (req, res) => {
     const { type, memberIds, name } = req.body;
     const senderId = req.user._id;
     // Kiểm tra nếu như không có type, hoặc là group nhưng điều kiện group sai
-    if (
+    if(
       !type ||
       (type == "group" &&
         (!name ||
@@ -21,13 +21,13 @@ export const createConversation = async (req, res) => {
     let conversation;
 
     // Nếu là direct thì kiểm tra conversation đã có chưa, nếu chưa thì tạo mới
-    if (type == "direct") {
+    if(type == "direct") {
       const toUserId = memberIds[0];
       conversation = await Conversation.findOne({
         type: "direct",
         "participants.userId": { $all: [senderId, toUserId] },
       });
-      if (!conversation) {
+      if(!conversation) {
         conversation = await Conversation.create({
           type: "direct",
           participants: [
@@ -42,7 +42,7 @@ export const createConversation = async (req, res) => {
     }
 
     // Nếu là nhóm thì tạo nhóm mới
-    if ((type == "group")) {
+    if((type == "group")) {
       conversation = await Conversation.create({
         type: "group",
         participants: [
@@ -56,7 +56,7 @@ export const createConversation = async (req, res) => {
       await conversation.save();
     }
 
-    if (!conversation) {
+    if(!conversation) {
       return res.status(404).json({ message: "Conversation not found" });
     }
 
@@ -67,7 +67,7 @@ export const createConversation = async (req, res) => {
       { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
     ]);
     return res.status(201).json({ conversation });
-  } catch (error) {
+  } catch(error) {
     console.error("Error creating conversation", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
@@ -132,7 +132,7 @@ export const getMessages = async (req, res) => {
     const { conversationId } = req.params; // Lấy conversationId từ URL
     const { limit = 50, cursor } = req.query; // limit mặc định là 50, cursor là mốc thời gian
     const query = { conversationId };
-    if (cursor) {
+    if(cursor) {
       // Nếu có cursor thì chỉ lấy các tin nhắn cũ hơn nó
       query.createdAt = { $lt: new Date(cursor) };
     }
@@ -142,15 +142,29 @@ export const getMessages = async (req, res) => {
 
     const hasMore = messages.length > limit;
     let nextCursor = null;
-    if (hasMore) {
+    if(hasMore) {
       // Nếu còn trang sau thì trả về cursor cho lần sau, và bỏ tin nhắn thừa đi
       nextCursor = messages[messages.length - 1].createdAt.toISOString();
       messages.pop();
     }
     messages.reverse(); // Đảo thứ tự lại cho client hiện thị từ cũ đến mới
     return res.status(200).json({ messages, nextCursor });
-  } catch (error) {
+  } catch(error) {
     console.error("Error getting messages", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
+export const getUserConversationsForSocketIO = async (userId) => {
+  try {
+    const conversations = await Conversation.find({
+      "participants.userId": userId,
+    }, {
+      _id: 1,
+    })
+    return conversations.map((convo) => convo._id.toString());
+  } catch(error) {
+    console.error("Error getting user conversations for socketIO", error);
+    return [];
+  }
+}
