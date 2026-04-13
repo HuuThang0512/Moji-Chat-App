@@ -56,6 +56,19 @@ const lastMessageSchema = new mongoose.Schema(
   }
 );
 
+const seenBySchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const conversationSchema = new mongoose.Schema(
   {
     type: {
@@ -73,11 +86,10 @@ const conversationSchema = new mongoose.Schema(
     lastMessageAt: {
       type: Date,
     },
-    seenBy: [
-      {
-        type: participantSchema,
-      },
-    ],
+    seenBy: {
+      type: [seenBySchema],
+      default: [],
+    },
     lastMessage: {
       type: lastMessageSchema,
       default: null,

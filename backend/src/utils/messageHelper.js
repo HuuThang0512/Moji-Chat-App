@@ -36,6 +36,6 @@ export const emitNewMessage = (io, conversation, message) => {
       lastMessage: conversation.lastMessage,
       lastMessageAt: conversation.lastMessageAt,
     },
-    unreadCount: conversation.unreadCount,
+    unreadCount: Object.fromEntries(conversation.unreadCount),
   })
 }

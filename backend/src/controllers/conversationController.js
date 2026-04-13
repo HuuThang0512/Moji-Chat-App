@@ -1,6 +1,7 @@
 import Conversation from "../models/Conversation.js";
 import User from "../models/User.js";
 import Message from "../models/Message.js";
+import { io } from "../socket/index.js";
 
 export const createConversation = async (req, res) => {
   try {
@@ -166,5 +167,63 @@ export const getUserConversationsForSocketIO = async (userId) => {
   } catch(error) {
     console.error("Error getting user conversations for socketIO", error);
     return [];
+  }
+}
+
+export const markAsSeen = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id.toString();
+
+    const conversation = await Conversation.findById(conversationId).lean();
+
+    if(!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    const last = conversation.lastMessage;
+
+    if(!last) {
+      return res.status(200).json({ message: "Conversation has no last message" });
+    }
+
+    if(last.senderId.toString() === userId) {
+      return res.status(200).json({ message: "You are the last message sender" });
+    }
+
+    const updated = await Conversation.findByIdAndUpdate(conversationId, {
+      $addToSet: {
+        seenBy: { userId }
+      },
+      $set: { [`unreadCount.${userId}`]: 0 }
+    }, {
+      new: true,
+    }).populate([
+      { path: "seenBy.userId", select: "_id displayName avatarUrl" },
+      { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
+    ]);
+    const updatedConversation = updated?.toObject({ flattenMaps: true });
+
+    io.to(conversationId).emit("read-message", {
+      conversation: updatedConversation,
+      lastMessage: {
+        _id: updated?.lastMessage._id,
+        content: updated?.lastMessage.content,
+        createdAt: updated?.lastMessage.createdAt,
+        sender: {
+          _id: updated?.lastMessage.senderId,
+        }
+      }
+    })
+
+    return res.status(200).json({
+      message: "Marked as seen",
+      seenBy: updatedConversation?.seenBy || [],
+      myUnreadCount: updatedConversation?.unreadCount?.[userId] || 0
+    });
+
+  } catch(error) {
+    console.error("Error marking as seen", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 }

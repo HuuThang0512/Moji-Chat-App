@@ -19,7 +19,6 @@ const DirectMessageCard = (props: DirectMessageCardProps) => {
   const { user } = useAuthStore();
   const { activeConversationId, setActiveConversationId, messages, fetchMessages } = useChatStore();
   const { onlineUsers } = useSocketStore();
-  console.log(onlineUsers);
 
   if (!user) return null;
 

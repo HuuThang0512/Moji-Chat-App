@@ -15,7 +15,6 @@ const GroupChatCard = (props: GroupChatCardProps) => {
   const { convo } = props;
   const { user } = useAuthStore();
   const { activeConversationId, setActiveConversationId, messages, fetchMessages } = useChatStore();
-
   if (!user) return null;
 
   const unreadCount = convo.unreadCount?.[user._id] ?? 0;
