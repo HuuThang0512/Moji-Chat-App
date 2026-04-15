@@ -117,7 +117,7 @@ export function SignupForm({
                   {...register("username")}
                 />
                 {errors.username && (
-                  <p className="text-sm text-destructive">
+                  <p className="error-message">
                     {errors.username.message}
                   </p>
                 )}
@@ -131,7 +131,7 @@ export function SignupForm({
                   {...register("email")}
                 />
                 {errors.email && (
-                  <p className="text-sm text-destructive">
+                  <p className="error-message">
                     {errors.email.message}
                   </p>
                 )}
@@ -145,7 +145,7 @@ export function SignupForm({
                   {...register("password")}
                 />
                 {errors.password && (
-                  <p className="text-sm text-destructive">
+                  <p className="error-message">
                     {errors.password.message}
                   </p>
                 )}

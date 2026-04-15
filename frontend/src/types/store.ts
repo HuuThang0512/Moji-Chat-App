@@ -51,3 +51,9 @@ export interface SocketState {
     disconnectSocket: () => void;
 
 }
+
+export interface FriendState {
+    loading: boolean;
+    searchUserByUsername: (username: string) => Promise<User | undefined>;
+    addFriend: (to: string, message?: string) => Promise<string>;
+}
