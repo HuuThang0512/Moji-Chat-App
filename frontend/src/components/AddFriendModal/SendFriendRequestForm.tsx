@@ -5,6 +5,7 @@ import { Label } from '../ui/label';
 import { DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { UserPlus } from 'lucide-react';
+import type { UseFormRegister } from 'react-hook-form';
 
 interface SendRequestProps {
   register: UseFormRegister<IFormValues>;
@@ -21,12 +22,12 @@ const SendFriendRequestForm = ({ register, loading, searchedUsername, onSubmit, 
       onSubmit={ onSubmit }
       className="space-y-4"
     >
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <span className="success-message">
           Found <span className="font-semibold">@{ searchedUsername }</span> successfully
         </span>
 
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <Label
             htmlFor="message"
             className="text-sm font-semibold"

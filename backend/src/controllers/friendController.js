@@ -151,7 +151,7 @@ export const getFriendRequests = async (req, res) => {
   try {
     // Lấy userId hiện tại
     const userId = req.user._id;
-    const populateFields = "_id displayName avatarUrl";
+    const populateFields = "_id username displayName avatarUrl";
 
     // Tìm trong bảng friendRequest, dùng promiseAll để lấy ra 2 loại, sau đó trả về 2 loại đó luôn
     const [sentRequests, receivedRequests] = await Promise.all([
