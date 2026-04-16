@@ -89,7 +89,7 @@ export function SignupForm({
                     {...register("firstname")}
                   />
                   {errors.firstname && (
-                    <p className="text-sm text-destructive">
+                    <p className="error-message">
                       {errors.firstname.message}
                     </p>
                   )}
@@ -102,7 +102,7 @@ export function SignupForm({
                     {...register("lastname")}
                   />
                   {errors.lastname && (
-                    <p className="text-sm text-destructive">
+                    <p className="error-message">
                       {errors.lastname.message}
                     </p>
                   )}
