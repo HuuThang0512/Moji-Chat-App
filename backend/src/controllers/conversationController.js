@@ -62,12 +62,25 @@ export const createConversation = async (req, res) => {
     }
 
     // Populate để trả về thêm thông tin của conversation
-    conversation.populate([
-      { path: "participants.userId", select: "_id displayName avatarUrl" },
+    await conversation.populate([
+      { path: "participants.userId", select: "_id displayName username avatarUrl" },
       { path: "seenBy.userId", select: "_id displayName avatarUrl" },
       { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
     ]);
-    return res.status(201).json({ conversation });
+
+    const paticipants = (conversation.participants || []).map((p) => ({
+      _id: p.userId?._id,
+      displayName: p.userId?.displayName,
+      username: p.userId?.username,
+      avatarUrl: p.userId?.avatarUrl ?? null,
+      joinedAt: p.joinedAt,
+    }))
+
+    const formatted = {
+      ...conversation.toObject(),
+      participants: paticipants,
+    }
+    return res.status(201).json({ conversation: formatted });
   } catch(error) {
     console.error("Error creating conversation", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -82,7 +95,7 @@ export const getConversations = async (req, res) => {
     })
       .sort({ lastMessageAt: -1, updatedAt: -1 })
       .populate([
-        { path: "participants.userId", select: "_id displayName avatarUrl" },
+        { path: "participants.userId", select: "_id displayName username avatarUrl" },
         { path: "seenBy.userId", select: "_id displayName avatarUrl" },
         { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
       ]);
@@ -92,6 +105,7 @@ export const getConversations = async (req, res) => {
       const paticipants = (convo.participants || []).map((p) => ({
         _id: p.userId?._id,
         displayName: p.userId?.displayName,
+        username: p.userId?.username,
         avatarUrl: p.userId?.avatarUrl ?? null,
         joinedAt: p.joinedAt,
       }));

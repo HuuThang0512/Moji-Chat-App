@@ -4,11 +4,12 @@ import type { ChatState } from "@/types/store";
 import { chatService } from "@/services/chatService";
 import { useAuthStore } from "./useAuthStore";
 import { toast } from "sonner";
-import type { Conversation,Message } from "@/types/chat";
+import type { Conversation, Message } from "@/types/chat";
+import { useSocketStore } from "./useSocketStore";
 
 export const useChatStore = create<ChatState>()(
   persist(
-    (set,get) => ({
+    (set, get) => ({
       conversations: [],
       messages: {},
       activeConversationId: null,
@@ -19,22 +20,22 @@ export const useChatStore = create<ChatState>()(
         set({ activeConversationId: id });
       },
       reset: () => {
-        set({ conversations: [],messages: {},activeConversationId: null,conversationLoading: false,messagesLoading: false });
+        set({ conversations: [], messages: {}, activeConversationId: null, conversationLoading: false, messagesLoading: false });
       },
 
       fetchConversations: async () => {
         try {
           set({ conversationLoading: true });
           const { conversations } = await chatService.fetchConversations();
-          set({ conversations,conversationLoading: false });
+          set({ conversations, conversationLoading: false });
         } catch(error) {
-          console.error("Error fetching conversations",error);
+          console.error("Error fetching conversations", error);
           set({ conversationLoading: false });
         }
       },
 
       fetchMessages: async (conversationId?: string) => {
-        const { activeConversationId,messages } = get();
+        const { activeConversationId, messages } = get();
         const { user } = useAuthStore.getState();
         const convoId = conversationId ?? activeConversationId;
         if(!convoId) return;
@@ -46,7 +47,7 @@ export const useChatStore = create<ChatState>()(
 
         set({ messagesLoading: true });
         try {
-          const { messages: fetched,cursor } = await chatService.fetchMessages(convoId,nextCursor);
+          const { messages: fetched, cursor } = await chatService.fetchMessages(convoId, nextCursor);
           const processed = fetched.map((m) => {
             return {
               ...m,
@@ -69,7 +70,7 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const prev = state.messages[convoId]?.items ?? []
             // Đẩy tin nhắn mới nhất về phía trước
-            const merged = prev.length > 0 ? [...processed,...prev] : processed
+            const merged = prev.length > 0 ? [...processed, ...prev] : processed
             return {
               messages: {
                 ...state.messages,
@@ -84,39 +85,39 @@ export const useChatStore = create<ChatState>()(
           })
 
         } catch(error) {
-          console.error("Error fetching messages",error);
+          console.error("Error fetching messages", error);
           set({ messagesLoading: false });
         } finally {
           set({ messagesLoading: false });
         }
       },
 
-      sendDirectMessage: async (recipientId: string,content: string,imgUrl?: string,conversationId?: string): Promise<void> => {
+      sendDirectMessage: async (recipientId: string, content: string, imgUrl?: string, conversationId?: string): Promise<void> => {
         try {
           const { activeConversationId } = get();
-          await chatService.sendDirectMessage(recipientId,content,imgUrl,activeConversationId ?? conversationId ?? undefined);
+          await chatService.sendDirectMessage(recipientId, content, imgUrl, activeConversationId ?? conversationId ?? undefined);
 
           set((state) => (
             {
-              conversations: state.conversations.map((c) => c._id === activeConversationId ? { ...c,seenBy: [] } : c)
+              conversations: state.conversations.map((c) => c._id === activeConversationId ? { ...c, seenBy: [] } : c)
             }
           ))
         } catch(error) {
-          console.error("Error sending direct message",error);
+          console.error("Error sending direct message", error);
           toast.error("Failed to send direct message");
         }
       },
-      sendGroupMessage: async (conversationId: string,content: string,imgUrl?: string): Promise<void> => {
+      sendGroupMessage: async (conversationId: string, content: string, imgUrl?: string): Promise<void> => {
         try {
-          await chatService.sendGroupMessage(conversationId,content,imgUrl);
+          await chatService.sendGroupMessage(conversationId, content, imgUrl);
 
           set((state) => (
             {
-              conversations: state.conversations.map((c) => c._id === conversationId ? { ...c,seenBy: [] } : c)
+              conversations: state.conversations.map((c) => c._id === conversationId ? { ...c, seenBy: [] } : c)
             }
           ))
         } catch(error) {
-          console.error("Error sending group message",error);
+          console.error("Error sending group message", error);
           toast.error("Failed to send group message");
         }
       },
@@ -142,7 +143,7 @@ export const useChatStore = create<ChatState>()(
               messages: {
                 ...state.messages,
                 [convoId]: {
-                  items: [...prevMessages,message],
+                  items: [...prevMessages, message],
                   hasMore: state.messages[convoId]?.hasMore ?? false,
                   nextCursor: state.messages[convoId]?.nextCursor ?? null
                 }
@@ -151,7 +152,7 @@ export const useChatStore = create<ChatState>()(
           })
 
         } catch(error) {
-          console.error("Error adding message",error);
+          console.error("Error adding message", error);
         }
       },
 
@@ -164,7 +165,7 @@ export const useChatStore = create<ChatState>()(
       markAsSeen: async (): Promise<void> => {
         try {
           const { user } = useAuthStore.getState();
-          const { activeConversationId,conversations } = get();
+          const { activeConversationId, conversations } = get();
 
           if(!activeConversationId || !user) {
             return;
@@ -185,7 +186,7 @@ export const useChatStore = create<ChatState>()(
 
           set((state) => ({
             conversations: state.conversations.map((c) => c._id === activeConversationId && c.lastMessage ? {
-              ...c,unreadCount: {
+              ...c, unreadCount: {
                 ...c.unreadCount,
                 [user?._id]: 0
               }
@@ -193,10 +194,30 @@ export const useChatStore = create<ChatState>()(
           }))
 
         } catch(error) {
-          console.error("Error marking as seen",error);
+          console.error("Error marking as seen", error);
         }
       },
-    }),{
+
+      addConvo: (convo: Conversation): void => {
+        set((state) => {
+          const exists = state.conversations.some((c) => c._id.toString() === convo._id.toString())
+          return {
+            conversations: exists ? state.conversations : [convo, ...state.conversations],
+            activeConversationId: convo._id
+          }
+        })
+      },
+      createConversation: async (type: "direct" | "group", memberIds: string[], name?: string): Promise<void> => {
+        try {
+          const convo = await chatService.createConversation(type, memberIds, name);
+          get().addConvo(convo);
+          useSocketStore.getState().socket?.emit("join-conversation", convo._id);
+        } catch(error) {
+          console.error("Error creating conversation", error);
+          toast.error("Failed to create conversation");
+        }
+      }
+    }), {
     name: "chat-storage",
     partialize: (state) => ({
       conversations: state.conversations,

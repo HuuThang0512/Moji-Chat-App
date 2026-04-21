@@ -21,8 +21,8 @@ export const sendFriendRequest = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const userA = from.toString();
-    const userB = to.toString();
+    let userA = from.toString();
+    let userB = to.toString();
     if (userA > userB) {
       [userA, userB] = [userB, userA];
     }
@@ -130,14 +130,27 @@ export const getAllFriends = async (req, res) => {
     const friendShips = await Friend.find({
       $or: [{ userA: userId }, { userB: userId }],
     })
-      .populate("userA", "_id displayName avatarUrl")
-      .populate("userB", "_id displayName avatarUrl")
+      .populate("userA", "_id displayName username avatarUrl")
+      .populate("userB", "_id displayName username avatarUrl")
       .lean();
 
-    // Map qua các bản ghi, trả về thông tin của friend _id, displayName, avatarUrl
-    const friends = friendShips.map((f) =>
-      f._id.toString() === userId.toString() ? f.userB : f.userA
-    );
+    const currentUserId = userId.toString();
+
+    // Map qua các bản ghi, luôn trả về user còn lại và loại bỏ data lỗi/self
+    const friends = friendShips
+      .map((f) => {
+        const userAId = f.userA?._id?.toString();
+        const userBId = f.userB?._id?.toString();
+
+        if (userAId === currentUserId) return f.userB;
+        if (userBId === currentUserId) return f.userA;
+        return null;
+      })
+      .filter((friend) => friend && friend._id?.toString() !== currentUserId)
+      .filter(
+        (friend, index, arr) =>
+          arr.findIndex((item) => item?._id?.toString() === friend?._id?.toString()) === index
+      );
 
     return res.status(200).json({ friends });
   } catch (error) {

@@ -1,9 +1,12 @@
 import { friendService } from "@/services/friendService";
 import type { FriendState } from "@/types/store";
+import type { Friend } from "@/types/user";
+import { useAuthStore } from "./useAuthStore";
 import { create } from "zustand";
 
 
 export const useFriendStore = create<FriendState>((set, get) => ({
+  friends: [],
   loading: false,
   receivedList: [],
   sentList: [],
@@ -70,6 +73,27 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       }))
     } catch(error) {
       console.error("Error declining friend request", error);
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  getFriends: async () => {
+    try {
+      set({ loading: true });
+      const friends = await friendService.getFriendList();
+      const currentUserId = useAuthStore.getState().user?._id;
+      const normalizedFriends: Friend[] = friends ?? [];
+      const safeFriends = normalizedFriends
+        .filter((friend) => friend?._id && friend._id !== currentUserId)
+        .filter(
+          (friend, index, arr) =>
+            arr.findIndex((item) => item._id === friend._id) === index
+        );
+      set({ friends: safeFriends });
+    } catch(error) {
+      console.error("Error getting friends", error);
+      set({ friends: [] });
     } finally {
       set({ loading: false });
     }

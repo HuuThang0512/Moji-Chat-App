@@ -40,6 +40,11 @@ export const friendService = {
     } catch (error) {
       console.error("Error declining friend request", error);
     }
+  },
+
+  async getFriendList() {
+    const res = await api.get("/friends");
+    return res.data.friends;
   }
 
 }
