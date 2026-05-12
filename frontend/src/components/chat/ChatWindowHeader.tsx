@@ -22,10 +22,23 @@ const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
     </header >
   );
 
-  if (chat.type === "direct") {
-    const otherUsers = chat.participants.filter(p => p._id !== user?._id);
+  const isGroup = chat.type === "group";
+  const participants = chat.participants ?? [];
+
+  if (!isGroup) {
+    const otherUsers = participants.filter((p) => p._id !== user?._id);
     otherUser = otherUsers.length > 0 ? otherUsers[0] : null;
-    if (!user || !otherUser) return
+    if (!user || !otherUser) {
+      return (
+        <header className="sticky top-0 z-10 flex items-center px-4 py-2 bg-background">
+          <div className="flex items-center gap-2 w-full">
+            <SidebarTrigger className="-ml-1 text-foreground"></SidebarTrigger>
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+            <span className="text-sm text-muted-foreground">Conversation unavailable</span>
+          </div>
+        </header>
+      );
+    }
   }
 
   return (
@@ -36,12 +49,17 @@ const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
         <div className="p-2 w-full flex items-center gap-3">
           {/* avatar */}
           <div className="relative inline-block">
-            {chat.type === "direct" ? <><UserAvatar name={otherUser?.displayName ?? "Moji"} avatarUrl={otherUser?.avatarUrl ?? undefined} type="sidebar" />
-              {/* todo: socketIO */}
-              <StatusBadge status={onlineUsers.includes(otherUser?._id ?? "") ? "online" : "offline"} /></> : <GroupChatAvatar participants={chat.participants} type="sidebar" />}
+            {isGroup ? (
+              <GroupChatAvatar participants={participants} type="sidebar" />
+            ) : (
+              <>
+                <UserAvatar name={otherUser?.displayName ?? "Moji"} avatarUrl={otherUser?.avatarUrl ?? undefined} type="sidebar" />
+                <StatusBadge status={onlineUsers.includes(otherUser?._id ?? "") ? "online" : "offline"} />
+              </>
+            )}
           </div>
           {/* name */}
-          <h2 className="font-semibold text-foreground truncate">{chat.type === "direct" ? otherUser?.displayName ?? "Moji" : chat.group?.name ?? "Group Chat"}</h2>
+          <h2 className="font-semibold text-foreground truncate">{isGroup ? chat.group?.name ?? "Group Chat" : otherUser?.displayName ?? "Moji"}</h2>
         </div>
       </div>
     </header>

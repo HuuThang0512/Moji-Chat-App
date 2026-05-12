@@ -5,6 +5,7 @@ import type { User } from '@/types/user';
 import { useFriendStore } from '@/stores/useFriendStore';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import axios from 'axios';
 import SearchForm from '../addFriendModal/SearchForm';
 import SendFriendRequestForm from '../addFriendModal/SendFriendRequestForm';
 
@@ -24,7 +25,7 @@ const AddFriendModal = () => {
     handleSubmit,
     watch,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<IFormValues>({
     defaultValues: {
       username: '',
@@ -57,12 +58,19 @@ const AddFriendModal = () => {
 
   const handleSend = handleSubmit(async (data) => {
     if(!searchUser) return;
+    if (searchUser.relationship && searchUser.relationship !== "none") {
+      return;
+    }
     try {
       const resultMessage = await addFriend(searchUser._id, data.message?.trim());
       toast.success(resultMessage);
       handleCancel();
     } catch(error) {
       console.error("Error sending friend request", error);
+      const message = axios.isAxiosError(error)
+        ? (error.response?.data as { message?: string })?.message
+        : undefined;
+      toast.error(message ?? "Failed to send friend request");
     }
   })
 
@@ -86,7 +94,16 @@ const AddFriendModal = () => {
           <DialogTitle>Add Friend</DialogTitle>
         </DialogHeader>
         { !isFound && <SearchForm register={ register } errors={ errors } loading={ loading } usernameValue={ usernameValue } isFound={ isFound } searchedUsername={ searchedUsername } onSubmit={ handleSearch } onCancel={ handleCancel } /> }
-        { isFound && <SendFriendRequestForm register={ register } loading={ loading } searchedUsername={ searchedUsername } onSubmit={ handleSend } onBack={ handleCancel } /> }
+        { isFound && searchUser ? (
+          <SendFriendRequestForm
+            register={ register }
+            loading={ loading }
+            searchedUsername={ searchedUsername }
+            relationship={ searchUser.relationship ?? "none" }
+            onSubmit={ handleSend }
+            onBack={ handleCancel }
+          />
+        ) : null }
       </DialogContent>
     </Dialog>
   )

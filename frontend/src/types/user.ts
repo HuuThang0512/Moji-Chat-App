@@ -1,3 +1,11 @@
+/** Set by GET /users/search for the current viewer */
+export type FriendRelationship =
+  | "none"
+  | "friends"
+  | "request_sent"
+  | "request_received"
+  | "self";
+
 export interface User {
   _id: string;
   username: string;
@@ -8,6 +16,7 @@ export interface User {
   phone?: string;
   createdAt?: string;
   updatedAt?: string;
+  relationship?: FriendRelationship;
 }
 
 export interface Friend {

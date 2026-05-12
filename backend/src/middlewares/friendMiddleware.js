@@ -1,8 +1,6 @@
 import Friend from "../models/Friend.js";
-import User from "../models/User.js";
 import Conversation from "../models/Conversation.js";
-
-const pair = (a, b) => (a < b ? [a, b] : [b, a]);
+import { sortedFriendPair } from "../utils/sortedFriendPair.js";
 
 export const checkFriendship = async (req, res, next) => {
   try {
@@ -17,7 +15,7 @@ export const checkFriendship = async (req, res, next) => {
     }
 
     if (recipientId) {
-      const [userA, userB] = pair(userId.toString(), recipientId.toString());
+      const [userA, userB] = sortedFriendPair(userId, recipientId);
       const friendship = await Friend.findOne({ userA, userB });
       if (!friendship) {
         return res.status(400).json({
@@ -29,7 +27,7 @@ export const checkFriendship = async (req, res, next) => {
     // Todo: Chat group
     if (memberIds?.length) {
       const friendChecks = memberIds.map(async (memberId) => {
-        const [userA, userB] = pair(userId.toString(), memberId.toString());
+        const [userA, userB] = sortedFriendPair(userId, memberId);
         const friendShip = await Friend.findOne({ userA, userB });
         return friendShip ? null : memberId;
       });

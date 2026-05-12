@@ -23,14 +23,11 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     }
   },
   addFriend: async (to: string, message?: string) => {
+    set({ loading: true });
     try {
-      set({ loading: true });
       const resultMessage = await friendService.sendFriendRequest(to, message);
       await get().getAllFriendRequests();
       return resultMessage;
-    } catch(error) {
-      console.error("Error adding friend", error);
-      return "Failed to send friend request";
     } finally {
       set({ loading: false });
     }
@@ -84,11 +81,17 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       const friends = await friendService.getFriendList();
       const currentUserId = useAuthStore.getState().user?._id;
       const normalizedFriends: Friend[] = friends ?? [];
+      const me = currentUserId != null ? String(currentUserId) : null;
       const safeFriends = normalizedFriends
-        .filter((friend) => friend?._id && friend._id !== currentUserId)
+        .filter(
+          (friend) =>
+            friend?._id &&
+            (me == null || String(friend._id) !== me)
+        )
         .filter(
           (friend, index, arr) =>
-            arr.findIndex((item) => item._id === friend._id) === index
+            arr.findIndex((item) => String(item._id) === String(friend._id)) ===
+            index
         );
       set({ friends: safeFriends });
     } catch(error) {

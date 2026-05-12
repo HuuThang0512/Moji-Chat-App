@@ -19,6 +19,7 @@ const GroupChatCard = (props: GroupChatCardProps) => {
 
   const unreadCount = convo.unreadCount?.[user._id] ?? 0;
   const name = convo.group?.name ?? "";
+  const members = convo.participants ?? [];
   const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
     if (!messages[id]) {
@@ -28,7 +29,7 @@ const GroupChatCard = (props: GroupChatCardProps) => {
 
 
   return (
-    <ChatCard convoId={convo._id} name={name} timestamp={convo.lastMessage?.createdAt ? new Date(convo.lastMessage.createdAt) : undefined} isActive={activeConversationId === convo._id} onSelect={handleSelectConversation} unreadCount={unreadCount} leftSection={<>{unreadCount > 0 && <UnreadCountBadge unreadCount={unreadCount} />}<GroupChatAvatar participants={convo.participants} type="chat" /></>} subTitle={<p className={cn("text-sm truncate", unreadCount > 0 ? "font medium text-foreground" : "text-muted-foreground")}>{convo.participants.length} members</p>} />
+    <ChatCard convoId={convo._id} name={name} timestamp={convo.lastMessage?.createdAt ? new Date(convo.lastMessage.createdAt) : undefined} isActive={activeConversationId === convo._id} onSelect={handleSelectConversation} unreadCount={unreadCount} leftSection={<>{unreadCount > 0 && <UnreadCountBadge unreadCount={unreadCount} />}<GroupChatAvatar participants={members} type="chat" /></>} subTitle={<p className={cn("text-sm truncate", unreadCount > 0 ? "font medium text-foreground" : "text-muted-foreground")}>{members.length} members</p>} />
   )
 }
 

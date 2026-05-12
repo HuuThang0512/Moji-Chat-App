@@ -1,4 +1,3 @@
-import React from 'react'
 import { useChatStore } from '@/stores/useChatStore'
 import DirectMessageCard from './DirectMessageCard';
 
@@ -9,7 +8,8 @@ const DirectMessageList = () => {
   }
   const directConversations = conversations.filter(
     (conversation) =>
-      conversation.type === "direct" &&
+      conversation.type !== "group" &&
+      (conversation.participants?.length ?? 0) > 0 &&
       (!!conversation.lastMessage || conversation._id === activeConversationId)
   );
 

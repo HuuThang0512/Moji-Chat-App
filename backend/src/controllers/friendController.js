@@ -1,6 +1,7 @@
 import FriendRequest from "../models/FriendRequest.js";
 import Friend from "../models/Friend.js";
 import User from "../models/User.js";
+import { sortedFriendPair } from "../utils/sortedFriendPair.js";
 
 /**
  * Gửi lời mời kết bạn
@@ -21,11 +22,7 @@ export const sendFriendRequest = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    let userA = from.toString();
-    let userB = to.toString();
-    if (userA > userB) {
-      [userA, userB] = [userB, userA];
-    }
+    const [userA, userB] = sortedFriendPair(from, to);
     const [alreadyFriend, alreadyRequested] = await Promise.all([
       Friend.findOne({ userA, userB }),
       FriendRequest.findOne({

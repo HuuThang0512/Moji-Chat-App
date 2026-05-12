@@ -25,20 +25,31 @@ const ChatWindowBody = () => {
 
   // Handle scroll to bottom of conversation when first open
   useLayoutEffect(() => {
-    if(!messagesEndRef.current) return;
-    messagesEndRef.current.scrollIntoView();
-  }, [activeConversationId])
+    if (!messagesEndRef.current) return;
+    messagesEndRef.current.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activeConversationId]);
 
-  // Handle scroll to saved when compoennt re-render by scroll
   useLayoutEffect(() => {
     const container = containerRef.current;
-    const scrollSave = sessionStorage.getItem(keyScrollStorage);
-    const {scrollTop} = JSON.parse(scrollSave || '{}');
+    if (!container) return;
+    const raw = sessionStorage.getItem(keyScrollStorage);
+    if (!raw) return;
+    let scrollTop: number | undefined;
+    try {
+      const parsed = JSON.parse(raw) as { scrollTop?: number };
+      scrollTop = parsed.scrollTop;
+    } catch {
+      return;
+    }
+    if (typeof scrollTop !== "number" || Number.isNaN(scrollTop)) return;
     requestAnimationFrame(() => {
-      if(!container) return;
-      container.scrollTop = scrollTop;
+      if (!containerRef.current) return;
+      containerRef.current.scrollTop = scrollTop!;
     });
-  })
+  }, [activeConversationId, keyScrollStorage]);
 
   useEffect(() => {
     const lastMessage = selectedConvo?.lastMessage;
@@ -76,8 +87,12 @@ const ChatWindowBody = () => {
   }
 
   return (
-    <div className="p-4 bg-primary-foreground h-full flex flex-col overflow-hidden">
-      <div ref={ containerRef } id="scrollableDiv" className="flex flex-col-reverse overflow-y-auto overflow-x-hidden beatiful-scrollbar">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-primary-foreground p-4">
+      <div
+        ref={ containerRef }
+        id="scrollableDiv"
+        className="beautiful-scrollbar flex min-h-0 min-w-0 max-w-full flex-col-reverse overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
+      >
         <div ref={ messagesEndRef }></div>
         <InfiniteScroll
           dataLength={messages.length}
@@ -87,7 +102,12 @@ const ChatWindowBody = () => {
           inverse={true}
           onScroll={handleScrollSave}
           loader={<div>Loading...</div>}
-          style={{ display: 'flex', flexDirection: 'column-reverse' }}
+          style={{
+            display: "flex",
+            flexDirection: "column-reverse",
+            minWidth: 0,
+            maxWidth: "100%",
+          }}
         >
           { reverseMessages.map((message, index) => (
             <MessageItem key={ message._id } message={ message } index={ index } messages={ reverseMessages } selectedConvo={ selectedConvo } lastMessageStatus={ lastMessageStatus } />

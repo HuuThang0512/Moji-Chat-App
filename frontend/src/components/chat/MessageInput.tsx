@@ -27,17 +27,17 @@ const MessageInput = (props: MessageInputProps) => {
     const currentValue = value;
     setValue("");
     try {
-      // Tin nhắn riêng
-        if (selectedConvo.type === "direct") {
-          const participants = selectedConvo.participants;
-          const otherUser = participants.filter(p => p._id.toString() !== user._id.toString())[0];
-          if (!otherUser) return;
-          const otherUserId = otherUser._id.toString();
-          await sendDirectMessage(otherUserId, currentValue, undefined, selectedConvo._id);
-        } else {
-          // Tin nhắn trong nhóm
-          await sendGroupMessage(selectedConvo._id, currentValue);
-        }
+      // Chỉ coi là nhóm khi type === "group". Mọi trường hợp khác (direct hoặc type thiếu do persist cũ) đều gửi DM.
+      const isGroup = selectedConvo.type === "group";
+      if (!isGroup) {
+        const participants = selectedConvo.participants ?? [];
+        const otherUser = participants.find((p) => p._id.toString() !== user._id.toString());
+        if (!otherUser) return;
+        const otherUserId = otherUser._id.toString();
+        await sendDirectMessage(otherUserId, currentValue, undefined, selectedConvo._id);
+      } else {
+        await sendGroupMessage(selectedConvo._id, currentValue);
+      }
     } catch (error) {
       console.error("Error sending message", error);
       toast.error("Failed to send message");

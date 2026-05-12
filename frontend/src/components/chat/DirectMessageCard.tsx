@@ -1,9 +1,7 @@
 import type { Conversation } from '@/types/chat';
-import React from 'react'
 import ChatCard from './ChatCard'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useChatStore } from '@/stores/useChatStore'
-import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import UserAvatar from './UserAvatar';
 import StatusBadge from './StatusBadge';
@@ -22,7 +20,8 @@ const DirectMessageCard = (props: DirectMessageCardProps) => {
 
   if (!user) return null;
 
-  const otherUser = convo.participants.find(p => p._id.toString() !== user._id.toString());
+  const participants = convo.participants ?? [];
+  const otherUser = participants.find((p) => p._id.toString() !== user._id.toString());
   if (!otherUser) return null;
   const unreadCount = convo.unreadCount?.[user._id] ?? 0;
   const lastMessage = convo.lastMessage?.content ?? '';

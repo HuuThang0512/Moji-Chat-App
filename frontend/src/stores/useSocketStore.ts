@@ -91,7 +91,11 @@ export const useSocketStore = create<SocketState>((set,get) => ({
       useChatStore.getState().updateConversation(updated as Conversation);
     })
 
-
+    // New group chat
+    socket.on("new-group", (conversation) => {
+      useChatStore.getState().addConvo(conversation)
+      socket.emit("join-conversation", conversation._id);
+    })
 
   },
   disconnectSocket: () => {

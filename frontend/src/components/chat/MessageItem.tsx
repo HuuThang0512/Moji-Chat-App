@@ -18,12 +18,19 @@ const MessageItem = (props: MessageItemProps) => {
   const prev = index + 1 < messages.length ? messages[index + 1] : null;
   const isShowTime = index === 0 || message.senderId != prev?.senderId || new Date(message.createdAt).getTime() - new Date(prev?.createdAt || 0).getTime() > 300000 // 5 mins
   const isGroupBreak = isShowTime && message.senderId != prev?.senderId;
-  const participant = selectedConvo.participants.find((p: Participant) => p._id.toString() === message.senderId.toString());
+  const participant = (selectedConvo.participants ?? []).find(
+    (p: Participant) => p._id.toString() === message.senderId.toString(),
+  );
 
   return (
     <>
 
-      <div className={ cn("flex gap-2 message-bounce", message.isOwn ? "justify-end" : "justify-start") }>
+      <div
+        className={ cn(
+          "message-bounce flex min-w-0 gap-2",
+          message.isOwn ? "justify-end" : "justify-start",
+        ) }
+      >
         {/* avatar */ }
         { !message.isOwn && (
           <div className="w-8">
@@ -37,9 +44,14 @@ const MessageItem = (props: MessageItemProps) => {
         ) }
 
         {/* message */ }
-        <div className={ cn("max-w-xs lg:max-w-md space-y-1 flex flex-col mt-1", message.isOwn ? "justify-end" : "justify-start") }>
+        <div
+          className={ cn(
+            "mt-1 flex min-w-0 max-w-[min(100%,20rem)] flex-col space-y-1 lg:max-w-md",
+            message.isOwn ? "justify-end" : "justify-start",
+          ) }
+        >
           <Card className={ cn("p-3", message.isOwn ? "chat-bubble-sent border-0" : "chat-bubble-received border-0") }>
-            <p className="text-sm leading-relaxed wrap-break-words">{ message.content }</p>
+            <p className="break-words text-sm leading-relaxed">{ message.content }</p>
           </Card>
 
 

@@ -32,6 +32,7 @@ export interface ChatState {
     activeConversationId: string | null;
     conversationLoading: boolean;
     messagesLoading: boolean;
+    loading: boolean;
     reset: () => void;
 
     setActiveConversationId: (id: string | null) => void;
@@ -59,7 +60,7 @@ export interface FriendState {
     loading: boolean;
     receivedList: FriendRequest[];
     sentList: FriendRequest[];
-    searchUserByUsername: (username: string) => Promise<User | undefined>;
+    searchUserByUsername: (username: string) => Promise<User | null>;
     addFriend: (to: string, message?: string) => Promise<string>;
     getAllFriendRequests: () => Promise<void>;
     acceptRequest: (requestId: string) => Promise<void>;
