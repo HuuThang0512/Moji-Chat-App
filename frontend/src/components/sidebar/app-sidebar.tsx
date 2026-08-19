@@ -37,13 +37,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar variant="inset" {...props}>
-      {/* Header */}
-      <SidebarHeader>
+      {/*
+        Header.
+        Trên điện thoại sidebar là một sheet dán sát mép màn hình, nên header
+        cũng phải tràn sát mép: giữ padding và bo góc của bản desktop ở đây làm
+        khối gradient lọt thỏm bên trong, lệch tông với phần còn lại.
+      */}
+      <SidebarHeader className="p-0 md:p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="bg-gradient-primary">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="bg-gradient-primary h-14 rounded-none md:h-12 md:rounded-md"
+            >
               <a href="#">
-                <div className="flex w-full items-center px-2 justify-between">
+                <div className="flex w-full items-center justify-between px-4 md:px-2">
                   <h1 className="text-xl font-bold text-white">Moji</h1>
                   <div className="flex items-center gap-2">
                     <Sun className="size-4 text-white/80" />

@@ -1,20 +1,20 @@
 import { useChatStore } from '@/stores/useChatStore'
 import DirectMessageCard from './DirectMessageCard';
+import EmptyListHint from './EmptyListHint';
 
 const DirectMessageList = () => {
   const { conversations, activeConversationId } = useChatStore();
-  if (!conversations || conversations.length === 0) {
-    return;
-  }
-  const directConversations = conversations.filter(
+
+  const directConversations = (conversations ?? []).filter(
     (conversation) =>
       conversation.type !== "group" &&
       (conversation.participants?.length ?? 0) > 0 &&
       (!!conversation.lastMessage || conversation._id === activeConversationId)
   );
 
+  // Xem chú thích trong EmptyListHint về lý do không trả về rỗng.
   if (directConversations.length === 0) {
-    return null;
+    return <EmptyListHint>Chưa có cuộc trò chuyện nào</EmptyListHint>;
   }
 
   return (
