@@ -31,3 +31,14 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+
+      # Gửi mail xác minh và khôi phục mật khẩu (Brevo).
+      # Thiếu thì hai chức năng đó trả 503, phần còn lại chạy bình thường.
+      # Không khai APP_URL: Render tự cấp RENDER_EXTERNAL_URL và server đọc biến đó.
+      # Không bao giờ khai EXPOSE_MAIL_TOKENS ở đây.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_FROM_NAME
+        sync: false

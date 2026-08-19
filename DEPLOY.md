@@ -80,6 +80,24 @@ thường, chỉ endpoint upload trả về 503 kèm thông báo rõ ràng.
 1. Đăng ký tại <https://cloudinary.com>.
 2. Dashboard hiện sẵn **Cloud name**, **API Key**, **API Secret** — copy cả ba.
 
+## Bước 3b — Brevo, để gửi email (tuỳ chọn)
+
+Bỏ qua thì app vẫn chạy, chỉ xác minh email và khôi phục mật khẩu trả về 503 —
+người dùng quên mật khẩu sẽ mất tài khoản, nên với người dùng thật thì đừng bỏ qua.
+
+1. Đăng ký tại <https://www.brevo.com>. Gói free 300 email mỗi ngày, không cần thẻ.
+2. **Senders, Domains & Dedicated IPs** → **Senders** → **Add a sender**. Điền một
+   địa chỉ gmail của bạn, Brevo gửi mail xác nhận, bấm link trong đó. Địa chỉ này
+   chính là `MAIL_FROM`.
+3. **SMTP & API** → tab **API Keys** → **Generate a new API key**. Copy ngay, Brevo
+   không cho xem lại.
+
+Ba giá trị cần lưu: `BREVO_API_KEY`, `MAIL_FROM` (địa chỉ vừa xác minh),
+`MAIL_FROM_NAME` (tên hiển thị, ví dụ `Moji`).
+
+Không cần đặt `APP_URL`: server tự đọc `RENDER_EXTERNAL_URL` do Render cấp để dựng
+link trong email.
+
 ## Bước 4 — Đẩy code lên GitHub
 
 ```bash
@@ -105,6 +123,9 @@ Repo đã có sẵn `render.yaml` nên Render tự đọc cấu hình, không ph
    | `CLOUDINARY_CLOUD_NAME` | Bước 3, hoặc để trống |
    | `CLOUDINARY_API_KEY` | Bước 3, hoặc để trống |
    | `CLOUDINARY_API_SECRET` | Bước 3, hoặc để trống |
+   | `BREVO_API_KEY` | Bước 3b, hoặc để trống |
+   | `MAIL_FROM` | Bước 3b, hoặc để trống |
+   | `MAIL_FROM_NAME` | `Moji` |
 
 4. **Apply**. Render build image từ `Dockerfile` — lần đầu mất khoảng 5–8 phút.
 
@@ -157,6 +178,9 @@ tên `alice_*`, `bob_*`, `mallory_*`, `carol_*` trong Atlas.
 | Đăng nhập xong F5 lại bị đăng xuất | Cookie không được lưu. Kiểm tra trang đang chạy `https` chứ không phải `http` |
 | Ảnh đại diện không hiện | CSP chặn domain lạ. Chỉ `res.cloudinary.com` được cho phép, xem `contentSecurityPolicy` trong `backend/src/server.js` |
 | Tải ảnh lên báo 503 | Chưa cấu hình đủ ba biến `CLOUDINARY_*` |
+| Xác minh email hoặc quên mật khẩu báo 503 | Chưa cấu hình `BREVO_API_KEY` và `MAIL_FROM` |
+| Không nhận được mail | Kiểm tra hộp thư rác trước. Vẫn không có thì xem log Render tìm dòng `Brevo trả lỗi:` — thường là địa chỉ trong `MAIL_FROM` chưa được xác minh ở mục Senders, hoặc đã hết hạn mức 300 mail/ngày |
+| Link trong mail trỏ về localhost | Thiếu `RENDER_EXTERNAL_URL` (Render tự cấp) — đặt tay `APP_URL=https://moji-xxxx.onrender.com` |
 | Tin nhắn không tới ngay, phải F5 | Socket.IO không kết nối được. Mở DevTools tab Network lọc `socket.io` để xem lỗi |
 | Lần đầu vào trang chờ rất lâu | Service đang ngủ, đây là hành vi của gói free |
 
