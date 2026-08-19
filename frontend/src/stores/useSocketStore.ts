@@ -31,7 +31,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     if (get().socket) return;
 
     const socket: Socket = io(baseURL, {
-      transports: ["websocket"],
+      // Ưu tiên websocket, giữ polling làm đường lui. Một số mạng công ty và
+      // proxy chặn WebSocket; thiếu polling thì ở đó chat câm hoàn toàn thay vì
+      // chậm hơn một chút.
+      transports: ["websocket", "polling"],
       // auth dạng callback được gọi lại ở mỗi lần kết nối lại, nên sau khi
       // access token được làm mới socket vẫn xác thực được.
       auth: (cb) => cb({ token: useAuthStore.getState().accessToken }),

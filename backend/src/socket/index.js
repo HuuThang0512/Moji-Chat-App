@@ -8,9 +8,21 @@ import { getUserConversationsForSocketIO, isUserInConversation } from "../contro
 const app = express();
 const server = http.createServer(app);
 
+/**
+ * Origin được phép kết nối Socket.IO.
+ *
+ * WebSocket không đi qua CORS nên trước đây chỉ khai clientUrl vẫn chạy. Từ khi
+ * client giữ polling làm đường lui thì khác: polling là request HTTP thật và bị
+ * CORS chặn. Trên Render, CLIENT_URL không được khai nên clientUrl rơi về
+ * localhost:5173 - chỉ khai mỗi nó là đường lui chết ngay khi cần tới.
+ *
+ * appUrl chính là origin thật của production (Render cấp RENDER_EXTERNAL_URL).
+ */
+const allowedOrigins = [...new Set([env.clientUrl, env.appUrl])];
+
 const io = new Server(server, {
   cors: {
-    origin: env.clientUrl,
+    origin: allowedOrigins,
     credentials: true,
   },
 });
