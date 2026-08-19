@@ -37,6 +37,16 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Mật khẩu là bắt buộc"),
 });
 
+const token = z.string().trim().min(1, "Thiếu token");
+
+export const forgotPasswordSchema = z.object({
+  email: z.email("Email không hợp lệ").trim().toLowerCase(),
+});
+
+export const verifyEmailSchema = z.object({ token });
+
+export const resetPasswordSchema = z.object({ token, password });
+
 export const sendFriendRequestSchema = z.object({
   to: objectId,
   message: z.string().trim().max(300, "Lời nhắn tối đa 300 ký tự").optional(),
