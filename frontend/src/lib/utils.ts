@@ -7,7 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export const formatOnlineTime = (date: Date) => {
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+
+  /**
+   * Chặn ở 0 vì mốc thời gian do server sinh ra, còn phép trừ này chạy bằng đồng
+   * hồ của máy người dùng. Máy chậm hơn server vài giây là hiệu số âm, và
+   * Math.floor(-0.5) ra -1 chứ không phải 0 - đó là lúc giao diện hiện "-1m".
+   */
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
 
   const diffMins = Math.floor(diffMs / (1000 * 60));
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
