@@ -1,79 +1,50 @@
 import Friend from "../models/Friend.js";
-import Conversation from "../models/Conversation.js";
 import { sortedFriendPair } from "../utils/sortedFriendPair.js";
+import { AppError } from "../utils/AppError.js";
 
+/**
+ * Chỉ cho phép nhắn tin / mở cuộc trò chuyện với người đã là bạn bè.
+ * Lấy danh sách đối tượng cần kiểm tra từ recipientId hoặc memberIds, rồi kiểm
+ * tra toàn bộ bằng một truy vấn $or thay vì mỗi người một truy vấn.
+ */
 export const checkFriendship = async (req, res, next) => {
   try {
-    const recipientId = req.body?.recipientId ?? null;
     const userId = req.user._id;
-    const memberIds = req.body?.memberIds ?? [];
+    const targets = [
+      ...new Set(
+        [req.body?.recipientId, ...(req.body?.memberIds ?? [])]
+          .filter(Boolean)
+          .map(String)
+          .filter((id) => id !== userId.toString())
+      ),
+    ];
 
-    if (!recipientId && !memberIds?.length) {
-      return res
-        .status(400)
-        .json({ message: "Recipient ID or member IDs are required" });
+    if (targets.length === 0) {
+      return next(new AppError(400, "Thiếu người nhận"));
     }
 
-    if (recipientId) {
-      const [userA, userB] = sortedFriendPair(userId, recipientId);
-      const friendship = await Friend.findOne({ userA, userB });
-      if (!friendship) {
-        return res.status(400).json({
-          message: "You must be friends with this user to send direct message",
-        });
-      }
-      return next();
-    }
-    // Todo: Chat group
-    if (memberIds?.length) {
-      const friendChecks = memberIds.map(async (memberId) => {
-        const [userA, userB] = sortedFriendPair(userId, memberId);
-        const friendShip = await Friend.findOne({ userA, userB });
-        return friendShip ? null : memberId;
-      });
-      const results = await Promise.all(friendChecks);
-      const notFriends = results.filter(Boolean);
-      if (notFriends.length) {
-        return res.status(403).json({
-          message: "You must be friends with all users to send group message",
-          notFriends,
-        });
-      }
-      return next();
-    }
-  } catch (error) {
-    console.error("Error in checkFriendship middleware", error);
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
-  }
-};
+    const pairs = targets.map((targetId) => {
+      const [userA, userB] = sortedFriendPair(userId, targetId);
+      return { userA, userB };
+    });
 
-export const checkGroupMembership = async (req, res, next) => {
-  try {
-    const { conversationId } = req.body;
-    const senderId = req.user._id;
-    const conversation = await Conversation.findOne({ _id: conversationId });
-    if (!conversation) {
-      return res.status(404).json({ message: "Conversation not found" });
+    const friendships = await Friend.find({ $or: pairs }).lean();
+
+    const friendIds = new Set();
+    friendships.forEach(({ userA, userB }) => {
+      friendIds.add(userA.toString());
+      friendIds.add(userB.toString());
+    });
+
+    const notFriends = targets.filter((id) => !friendIds.has(id));
+    if (notFriends.length) {
+      return next(
+        new AppError(403, "Bạn chỉ có thể nhắn tin với những người đã là bạn bè", { notFriends })
+      );
     }
-    if (conversation.type !== "group") {
-      return res
-        .status(400)
-        .json({ message: "This is not a group conversation" });
-    }
-    const isParticipant = conversation.participants.some(
-      (p) => p.userId.toString() === senderId.toString()
-    );
-    if (!isParticipant) {
-      return res
-        .status(403)
-        .json({ message: "You are not a member of this group" });
-    }
-    req.conversation = conversation;
+
     return next();
   } catch (error) {
-    console.error("Error in checkGroupMembership middleware", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    return next(error);
   }
 };

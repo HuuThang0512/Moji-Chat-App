@@ -1,77 +1,84 @@
 import React, { useState } from 'react'
+import { Send } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useChatStore } from '@/stores/useChatStore';
 import type { Conversation } from '@/types/chat';
 import { Button } from '../ui/button';
-import { ImagePlus, Send } from 'lucide-react';
 import { Input } from '../ui/input';
 import EmojiPicker from './EmojiPicker';
-import { toast } from 'sonner';
-import { useChatStore } from '@/stores/useChatStore';
 
 interface MessageInputProps {
   selectedConvo: Conversation;
 }
 
-const MessageInput = (props: MessageInputProps) => {
-  const { selectedConvo } = props;
+const MAX_LENGTH = 5000;
+
+const MessageInput = ({ selectedConvo }: MessageInputProps) => {
   const { user } = useAuthStore();
-  const {sendDirectMessage} = useChatStore();
-  const {sendGroupMessage} = useChatStore();
+  const { sendDirectMessage, sendGroupMessage } = useChatStore();
   const [value, setValue] = useState("");
+  const [sending, setSending] = useState(false);
 
   if (!user) return null;
 
-  // Hàm xử lý gửi tin nhắn
   const sendMessage = async () => {
-    if (!value.trim()) return;
-    const currentValue = value;
-    setValue("");
+    const content = value.trim();
+    if (!content || sending) return;
+
+    setSending(true);
     try {
-      // Chỉ coi là nhóm khi type === "group". Mọi trường hợp khác (direct hoặc type thiếu do persist cũ) đều gửi DM.
-      const isGroup = selectedConvo.type === "group";
-      if (!isGroup) {
-        const participants = selectedConvo.participants ?? [];
-        const otherUser = participants.find((p) => p._id.toString() !== user._id.toString());
-        if (!otherUser) return;
-        const otherUserId = otherUser._id.toString();
-        await sendDirectMessage(otherUserId, currentValue, undefined, selectedConvo._id);
+      // Chỉ coi là nhóm khi type === "group"; mọi trường hợp khác đều gửi tin riêng.
+      if (selectedConvo.type === "group") {
+        await sendGroupMessage(selectedConvo._id, content);
       } else {
-        await sendGroupMessage(selectedConvo._id, currentValue);
+        const otherUser = (selectedConvo.participants ?? []).find(
+          (p) => p._id.toString() !== user._id.toString()
+        );
+        if (!otherUser) return;
+        await sendDirectMessage(otherUser._id.toString(), content, undefined, selectedConvo._id);
       }
-    } catch (error) {
-      console.error("Error sending message", error);
-      toast.error("Failed to send message");
-    } 
+      // Chỉ xoá ô nhập khi gửi thành công, để nội dung không bị mất nếu lỗi mạng.
+      setValue("");
+    } catch {
+      // Store đã hiện toast lỗi rồi.
+    } finally {
+      setSending(false);
+    }
   }
 
-  // Xử lý gửi tin nhắn khi người dùng bấm enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   }
 
   return (
-    <div className="flex items-center gap-2 p-3 min-h-[56px] bg-background">
-      <Button variant="ghost" size="icon" className="hover:bg-primary/10 transition-smooth">
-        <ImagePlus className="size-4" />
-      </Button>
-      <div className="flex-1 relative ">
-        <Input onKeyPress={handleKeyDown} value={value} onChange={(e) => setValue(e.target.value)} placeholder="Type a message..." className="pr-20 h-9 bg-white border-border/50 focus:border-primary/50 transition-smooth resize-none" />
-        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-          <Button asChild variant="ghost" size="icon" className="size-8 hover:bg-primary/10 transition-smooth">
-            <div>
-              {/* emoji picker */}
-              <EmojiPicker onChange={(emoji) => setValue(value + emoji)} />
-            </div>
-          </Button>
+    <div className="flex items-center gap-2 p-3 min-h-14 bg-background">
+      <div className="flex-1 relative">
+        <Input
+          onKeyDown={handleKeyDown}
+          value={value}
+          maxLength={MAX_LENGTH}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Nhập tin nhắn..."
+          aria-label="Nội dung tin nhắn"
+          className="pr-12 h-9 border-border/50 focus:border-primary/50 transition-smooth resize-none"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <EmojiPicker onChange={(emoji) => setValue((prev) => (prev + emoji).slice(0, MAX_LENGTH))} />
         </div>
       </div>
-        {/* Sent message button*/}
-        <Button
+
+      <Button
         onClick={sendMessage}
-        className="bg-gradient-chat hover:scale-105 hover:shadow-glow transition-smooth cursor-pointer" disabled={!value.trim()} size="lg" ><Send className="size-4 text-white" /></Button> 
+        disabled={!value.trim() || sending}
+        size="lg"
+        aria-label="Gửi tin nhắn"
+        className="bg-gradient-chat hover:scale-105 hover:shadow-glow transition-smooth cursor-pointer disabled:cursor-not-allowed disabled:hover:scale-100"
+      >
+        <Send className="size-4 text-white" />
+      </Button>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { UserPlus } from 'lucide-react';
 import type { User } from '@/types/user';
 import { useFriendStore } from '@/stores/useFriendStore';
@@ -92,6 +92,9 @@ const AddFriendModal = () => {
       <DialogContent className="sm:max-w-[425px] border-none">
         <DialogHeader>
           <DialogTitle>Add Friend</DialogTitle>
+          <DialogDescription>
+            Tìm người dùng theo username rồi gửi lời mời kết bạn.
+          </DialogDescription>
         </DialogHeader>
         { !isFound && <SearchForm register={ register } errors={ errors } loading={ loading } usernameValue={ usernameValue } isFound={ isFound } searchedUsername={ searchedUsername } onSubmit={ handleSearch } onCancel={ handleCancel } /> }
         { isFound && searchUser ? (

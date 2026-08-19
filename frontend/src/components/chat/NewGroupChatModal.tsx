@@ -1,5 +1,5 @@
 import { useFriendStore } from "@/stores/useFriendStore";
-import { Dialog, DialogContent, DialogFooter, DialogTrigger } from "../ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { SidebarGroupAction } from "../ui/sidebar";
 import { Loader2, UserPlus, Users } from "lucide-react";
 import { Label } from "../ui/label";
@@ -67,6 +67,15 @@ const NewGroupChatModal = () => {
         </DialogTrigger>
       </SidebarGroupAction>
       <DialogContent className="border-none sm:max-w-[425px]" >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="size-5" />
+            Tạo nhóm chat mới
+          </DialogTitle>
+          <DialogDescription>
+            Đặt tên nhóm và mời ít nhất hai người bạn để tạo nhóm.
+          </DialogDescription>
+        </DialogHeader>
         <form className="space-y-4"
           onSubmit={ handleSubmit }>
           {/* group name */ }

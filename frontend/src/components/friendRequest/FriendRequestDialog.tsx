@@ -1,6 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import { useFriendStore } from "@/stores/useFriendStore";
 import ReceivedRequest from "./ReceivedRequest";
@@ -36,6 +36,9 @@ const FriendRequestDialog = ({ open, setOpen }: FriendRequestDialogProps) => {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Friend Requests</DialogTitle>
+          <DialogDescription>
+            Xem và xử lý các lời mời kết bạn đã nhận và đã gửi.
+          </DialogDescription>
         </DialogHeader>
         <Tabs value={ tab } onValueChange={ (value) => setTab(value as "received" | "sent") } className="w-full">
           <TabsList className="grid w-full grid-cols-2">

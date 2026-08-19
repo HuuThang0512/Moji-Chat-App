@@ -1,36 +1,47 @@
+import { useEffect, useRef, useState } from "react";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useChatStore } from "@/stores/useChatStore";
-import React, { useEffect, useState } from "react";
-import { Navigate, Outlet } from "react-router-dom";
 
 const ProtectedRoute = () => {
-  const { accessToken, user, loading, refresh, fetchMe } = useAuthStore();
-  const { fetchConversations } = useChatStore();
+  const accessToken = useAuthStore((state) => state.accessToken);
   const [starting, setStarting] = useState(true);
-  const init = async () => {
-    if (!accessToken) {
-      await refresh();
-    }
-    const { accessToken: tokenAfterRefresh, user: userAfterRefresh } =
-      useAuthStore.getState();
-    if (tokenAfterRefresh && !userAfterRefresh) {
-      await fetchMe();
-    }
-    const { conversations } = useChatStore.getState();
-    if (tokenAfterRefresh && (!conversations || conversations.length === 0)) {
-      await fetchConversations();
-    }
-    setStarting(false);
-  };
+  // React StrictMode chạy effect hai lần ở môi trường dev; ref này giữ cho
+  // chuỗi khởi tạo (refresh -> fetchMe -> fetchConversations) chỉ chạy một lần.
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    const init = async () => {
+      const auth = useAuthStore.getState();
+
+      // Access token không được lưu xuống ổ đĩa, nên sau khi tải lại trang phải
+      // đổi cookie refresh lấy token mới.
+      if (!auth.accessToken) {
+        await auth.refresh();
+      }
+
+      const { accessToken: token, user } = useAuthStore.getState();
+      if (token && !user) {
+        await useAuthStore.getState().fetchMe();
+      }
+      if (useAuthStore.getState().accessToken) {
+        await useChatStore.getState().fetchConversations();
+      }
+
+      setStarting(false);
+    };
+
     init();
   }, []);
 
-  if (starting || loading) {
+  if (starting) {
     return (
-      <div className="flex items-center justify-center gap-2">
-        <div className="w-10 h-10 border-t-transparent border-b-transparent border-r-transparent border-l-transparent border-2 border-primary rounded-full animate-spin"></div>
-        <span className="text-sm text-muted-foreground">... Loading</span>
+      <div className="flex min-h-screen items-center justify-center gap-3">
+        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <span className="text-sm text-muted-foreground">Đang tải...</span>
       </div>
     );
   }

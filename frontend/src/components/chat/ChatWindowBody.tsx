@@ -1,107 +1,61 @@
+import { useMemo } from 'react'
+import InfiniteScroll from 'react-infinite-scroll-component';
 import { useChatStore } from '@/stores/useChatStore';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ChatWelcomeScreen from './ChatWelcomeScreen';
 import MessageItem from './MessageItem';
-import InfiniteScroll from 'react-infinite-scroll-component';
-import { toast } from 'sonner';
 
 const ChatWindowBody = () => {
   const { activeConversationId, conversations, messages: allMessages, fetchMessages } = useChatStore();
-  const [lastMessageStatus, setLastMessageStatus] = useState<"delivered" | "seen">("delivered");
 
-  /** messages sẽ có dạng sắp xếp các tin nhắn theo chiều về sau là tin nhắn mới nhất trước, khi load thêm thì các tin cũ hơn sẽ được đẩy về phía đầu của danh sách */
-  const messages = allMessages[activeConversationId!]?.items ?? [];
+  const entry = activeConversationId ? allMessages[activeConversationId] : undefined;
+  const messages = useMemo(() => entry?.items ?? [], [entry?.items]);
+  const hasMore = entry?.hasMore ?? false;
   const selectedConvo = conversations.find(convo => convo._id === activeConversationId);
-  const reverseMessages = [...messages].reverse();
-  const hasMore = allMessages[activeConversationId!]?.hasMore ?? false;
 
-  // ref
-  const containerRef = useRef<HTMLDivElement>(null);
-  /**  End block ref to scroll to bottom of conversation when open */
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  /**
+   * Container dùng flex-col-reverse nên phần tử đầu mảng nằm ở đáy màn hình.
+   * messages được lưu theo thứ tự cũ -> mới, vì vậy phải đảo lại khi hiển thị.
+   */
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
+  // Cuộc trò chuyện được coi là đã đọc khi có ít nhất một người khác nằm trong seenBy.
+  const lastMessageStatus = (selectedConvo?.seenBy?.length ?? 0) > 0 ? "seen" : "delivered";
 
-  const keyScrollStorage = `chat-scroll-${activeConversationId}`;
-
-  // Handle scroll to bottom of conversation when first open
-  useLayoutEffect(() => {
-    if (!messagesEndRef.current) return;
-    messagesEndRef.current.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-    });
-  }, [activeConversationId]);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const raw = sessionStorage.getItem(keyScrollStorage);
-    if (!raw) return;
-    let scrollTop: number | undefined;
-    try {
-      const parsed = JSON.parse(raw) as { scrollTop?: number };
-      scrollTop = parsed.scrollTop;
-    } catch {
-      return;
-    }
-    if (typeof scrollTop !== "number" || Number.isNaN(scrollTop)) return;
-    requestAnimationFrame(() => {
-      if (!containerRef.current) return;
-      containerRef.current.scrollTop = scrollTop!;
-    });
-  }, [activeConversationId, keyScrollStorage]);
-
-  useEffect(() => {
-    const lastMessage = selectedConvo?.lastMessage;
-    if(!lastMessage) return;
-
-    const seenBy = selectedConvo?.seenBy ?? [];
-
-    setLastMessageStatus(seenBy.length > 0 ? "seen" : "delivered");
-  }, [selectedConvo]);
-
-  const fetchMoreMessages = async () => {
+  const fetchMoreMessages = () => {
     if (!activeConversationId) return;
-    try {
-      await fetchMessages(activeConversationId);
-    } catch {
-      toast.error("Failed to fetch more messages");
-    }
-  }
+    // Lỗi đã được store xử lý và thông báo, ở đây không cần bắt lại.
+    fetchMessages(activeConversationId, { loadMore: true });
+  };
 
-  /** Hàm để lưu vị trị cuộn hiện tại vào session storage */
-  const handleScrollSave = () => {
-    const container = containerRef.current;
-    if(!container) return;
-    sessionStorage.setItem(keyScrollStorage, JSON.stringify({
-      scrollTop: container.scrollTop,
-      scrollHeight: container.scrollHeight,
-    }));
-  }
+  if (!selectedConvo) return <ChatWelcomeScreen />;
 
-  if(!selectedConvo) return <ChatWelcomeScreen />;
-  if(!messages?.length) {
+  if (messages.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">There are no messages in this conversation</div>
-    )
+      <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground">
+        Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên.
+      </div>
+    );
   }
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-primary-foreground p-4">
+      {/*
+        flex-1 + min-h-0 là bắt buộc: thiếu flex-1 thì vùng cuộn chỉ cao bằng nội
+        dung và bị dồn lên mép trên, thay vì bám đáy như cửa sổ chat thường thấy.
+      */}
       <div
-        ref={ containerRef }
         id="scrollableDiv"
-        className="beautiful-scrollbar flex min-h-0 min-w-0 max-w-full flex-col-reverse overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
+        className="beautiful-scrollbar flex min-h-0 min-w-0 max-w-full flex-1 flex-col-reverse overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
       >
-        <div ref={ messagesEndRef }></div>
         <InfiniteScroll
           dataLength={messages.length}
           next={fetchMoreMessages}
           hasMore={hasMore}
           scrollableTarget="scrollableDiv"
           inverse={true}
-          onScroll={handleScrollSave}
-          loader={<div>Loading...</div>}
+          loader={
+            <div className="py-2 text-center text-xs text-muted-foreground">Đang tải tin nhắn cũ hơn...</div>
+          }
           style={{
             display: "flex",
             flexDirection: "column-reverse",
@@ -109,11 +63,17 @@ const ChatWindowBody = () => {
             maxWidth: "100%",
           }}
         >
-          { reverseMessages.map((message, index) => (
-            <MessageItem key={ message._id } message={ message } index={ index } messages={ reverseMessages } selectedConvo={ selectedConvo } lastMessageStatus={ lastMessageStatus } />
-          )) }
+          {reversedMessages.map((message, index) => (
+            <MessageItem
+              key={message._id}
+              message={message}
+              index={index}
+              messages={reversedMessages}
+              selectedConvo={selectedConvo}
+              lastMessageStatus={lastMessageStatus}
+            />
+          ))}
         </InfiniteScroll>
-
       </div>
     </div>
   )

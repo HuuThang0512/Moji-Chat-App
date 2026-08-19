@@ -1,53 +1,43 @@
 import api from "@/lib/axios";
-import type { User } from "@/types/user";
+import type { Friend, FriendRequest, User } from "@/types/user";
+
+interface FriendRequestsResult {
+  sent: FriendRequest[];
+  received: FriendRequest[];
+}
 
 export const friendService = {
   async searchUserByUsername(username: string): Promise<User | null> {
-    const res = await api.get(
-      `/users/search?username=${encodeURIComponent(username)}`
-    );
+    const res = await api.get("/users/search", { params: { username } });
     return res.data.user ?? null;
   },
 
-  async sendFriendRequest(to: string, message?: string) {
+  async sendFriendRequest(to: string, message?: string): Promise<string> {
     const res = await api.post("/friends/requests", {
       to,
-      message,
-    })
-    return res.data.message
+      ...(message ? { message } : {}),
+    });
+    return res.data.message;
   },
 
-  async getAllFriendRequests() {
-    try {
-      const res = await api.get("/friends/requests");
-      const { sentRequests = [], receivedRequests = [] } = res.data;
-      return { sent: sentRequests, received: receivedRequests };
-    } catch (error) {
-      console.error("Error getting all friend requests", error);
-    }
+  // Không nuốt lỗi ở tầng service: store cần biết request hỏng để báo cho người dùng.
+  async getAllFriendRequests(): Promise<FriendRequestsResult> {
+    const res = await api.get("/friends/requests");
+    const { sentRequests = [], receivedRequests = [] } = res.data;
+    return { sent: sentRequests, received: receivedRequests };
   },
 
-  async acceptRequest(requestId: string) {
-    try {
-      const res = await api.post(`/friends/requests/${requestId}/accept`);
-      return res.data.requestAcceptedBy;
-    } catch (error) {
-      console.error("Error accepting friend request", error);
-    }
-  },
-  
-  async declineRequest(requestId: string) {
-    try {
-      const res = await api.post(`/friends/requests/${requestId}/decline`);
-      return res.data.message;
-    } catch (error) {
-      console.error("Error declining friend request", error);
-    }
+  async acceptRequest(requestId: string): Promise<Friend | null> {
+    const res = await api.post(`/friends/requests/${requestId}/accept`);
+    return res.data.newFriend ?? null;
   },
 
-  async getFriendList() {
+  async declineRequest(requestId: string): Promise<void> {
+    await api.post(`/friends/requests/${requestId}/decline`);
+  },
+
+  async getFriendList(): Promise<Friend[]> {
     const res = await api.get("/friends");
-    return res.data.friends;
-  }
-
-}
+    return res.data.friends ?? [];
+  },
+};

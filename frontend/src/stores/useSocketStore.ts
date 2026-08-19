@@ -1,109 +1,116 @@
 import { create } from "zustand";
-import { io,type Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 import { useAuthStore } from "./useAuthStore";
 import type { SocketState } from "@/types/store";
 import { useChatStore } from "./useChatStore";
-import type { Conversation } from "@/types/chat";
+import type { Conversation, LastMessage, Message } from "@/types/chat";
 
-const baseURL = import.meta.env.VITE_SOCKET_URL;
+/**
+ * VITE_SOCKET_URL để trống nghĩa là kết nối tới chính origin đang mở trang.
+ * socket.io-client hiểu undefined theo đúng nghĩa đó, còn chuỗi rỗng thì không.
+ */
+const baseURL = import.meta.env.VITE_SOCKET_URL?.trim() || undefined;
 
-export const useSocketStore = create<SocketState>((set,get) => ({
+interface NewMessagePayload {
+  message: Message;
+  conversation: {
+    _id: string;
+    type: Conversation["type"];
+    lastMessage: LastMessage;
+    lastMessageAt: string;
+    seenBy: [];
+  };
+  unreadCount: Record<string, number>;
+}
+
+export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   onlineUsers: [],
+
   connectSocket: () => {
-    const accessToken = useAuthStore.getState().accessToken;
-    const existingSocket = get().socket;
-    if(existingSocket) {
-      return;
-    }
-    const socket: Socket = io(baseURL,{
+    if (get().socket) return;
+
+    const socket: Socket = io(baseURL, {
       transports: ["websocket"],
-      auth: {
-        token: accessToken,
-      },
+      // auth dạng callback được gọi lại ở mỗi lần kết nối lại, nên sau khi
+      // access token được làm mới socket vẫn xác thực được.
+      auth: (cb) => cb({ token: useAuthStore.getState().accessToken }),
     });
     set({ socket });
-    socket.on("connect",() => {
-      console.log("Socket connected");
+
+    let hasConnectedBefore = false;
+    socket.on("connect", () => {
+      // Sau khi mất kết nối, các sự kiện trong lúc offline đã bị bỏ lỡ nên
+      // phải tải lại danh sách cuộc trò chuyện để đồng bộ.
+      if (hasConnectedBefore) {
+        useChatStore.getState().fetchConversations();
+      }
+      hasConnectedBefore = true;
     });
 
-    // online users
-    socket.on("online-users",(userIds: string[]) => {
+    socket.on("connect_error", (error) => {
+      console.error("Socket connect error", error.message);
+    });
+
+    socket.on("online-users", (userIds: string[]) => {
       set({ onlineUsers: userIds });
     });
 
     /**
-     * Sự kiện "new-message" được gọi mỗi khi có tin nhắn mới được gửi trong một cuộc trò chuyện nào đó.
-     * - Đầu tiên, ta thêm message mới vào state messages của từng cuộc trò chuyện.
-     * - Sau đó cập nhật lại lastMessage và số lượng chưa đọc (unreadCount) cho đúng cuộc trò chuyện.
-     * 
-     * Lưu ý quan trọng: Nếu người dùng đang mở đúng phòng chat này (tức là activeConversationId == message.conversationId)
-     * thì gọi hàm markAsSeen để đánh dấu tin nhắn cuối cùng đã "được đọc".
-     * 
-     * markAsSeen sẽ gửi request tới backend để cập nhật trạng thái đã đọc của người dùng với conversation này,
-     * backend sẽ reset số lượng tin chưa đọc (unreadCount) về 0 cho user, đồng thời phát lại sự kiện "read-message" cho những socket
-     * khác. Frontend cũng sẽ cập nhật lại conversation với unreadCount mới.
+     * Tin nhắn mới. Server phát tới phòng riêng của từng thành viên, nên sự
+     * kiện tới cả khi cuộc trò chuyện vừa được tạo và client chưa join phòng.
      */
-    socket.on("new-message", ({ message, conversation, unreadCount }) => {
-      // Thêm tin nhắn mới vào local state (realtime UI)
-      useChatStore.getState().addMessage(message);
+    socket.on("new-message", async ({ message, conversation, unreadCount }: NewMessagePayload) => {
+      const chat = useChatStore.getState();
+      chat.addMessage(message);
 
-      // Cập nhật đối tượng lastMessage cho conversation.
-      // Lưu ý: Trường sender bên lastMessage chỉ chứa _id, vì thông tin sender đã được populate từ backend rồi.
-      const lastMessage = {
-        _id: conversation.lastMessage._id,
-        content: conversation.lastMessage.content,
-        createdAt: conversation.lastMessage.createdAt,
-        sender: {
-          _id: conversation.lastMessage.senderId,
-          displayName: "",
-          avatarUrl: null,
-        },
-      };
+      const known = chat.conversations.some((c) => c._id === conversation._id);
+      if (!known) {
+        // Cuộc trò chuyện lần đầu xuất hiện: kéo về đầy đủ kèm participants,
+        // vì payload realtime cố tình không mang theo dữ liệu nặng đó.
+        await chat.fetchConversations();
+      } else {
+        chat.updateConversation({
+          _id: conversation._id,
+          lastMessage: conversation.lastMessage,
+          lastMessageAt: conversation.lastMessageAt,
+          seenBy: [],
+          unreadCount,
+        });
+      }
 
-      // Tìm hội thoại cũ để cập nhật.
-      const currentConversations = useChatStore.getState().conversations;
-      const prevConversation = currentConversations.find((c) => c._id === conversation._id);
-      const updatedConversation = {
-        ...prevConversation,
-        lastMessage,
-        unreadCount,
-      };
-
-      // Cập nhật conversation trên UI (lastMessage + unreadCount)
-      useChatStore.getState().updateConversation(updatedConversation as Conversation);
-
-      // Đánh dấu đã đọc sau khi state unreadCount đã được cập nhật
       if (useChatStore.getState().activeConversationId === message.conversationId) {
-        useChatStore.getState().markAsSeen();
+        await useChatStore.getState().markAsSeen();
       }
     });
 
-    // Read message
-    socket.on("read-message", ({ conversation, lastMessage }) => {
-      const updated = {
-        _id: conversation._id,
-        lastMessage,
-        lastMessageAt: conversation.lastMessageAt,
-        unreadCount: conversation.unreadCount,
-        seenBy: conversation.seenBy,
+    /** Ai đó đã đọc tin nhắn: chỉ trộn seenBy và unreadCount, giữ nguyên phần còn lại. */
+    socket.on(
+      "read-message",
+      ({
+        conversationId,
+        seenBy,
+        unreadCount,
+      }: {
+        conversationId: string;
+        seenBy: Conversation["seenBy"];
+        unreadCount: Record<string, number>;
+      }) => {
+        useChatStore.getState().updateConversation({ _id: conversationId, seenBy, unreadCount });
       }
-      useChatStore.getState().updateConversation(updated as Conversation);
-    })
+    );
 
-    // New group chat
-    socket.on("new-group", (conversation) => {
-      useChatStore.getState().addConvo(conversation)
+    socket.on("new-group", (conversation: Conversation) => {
+      useChatStore.getState().addConvo(conversation);
       socket.emit("join-conversation", conversation._id);
-    })
-
+    });
   },
+
   disconnectSocket: () => {
     const socket = get().socket;
-    if(socket) {
-      socket.disconnect();
-      set({ socket: null });
-
-    }
-  }
-}))
+    if (!socket) return;
+    socket.removeAllListeners();
+    socket.disconnect();
+    set({ socket: null, onlineUsers: [] });
+  },
+}));

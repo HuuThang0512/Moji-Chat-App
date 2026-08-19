@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { formatOnlineTime, cn } from '@/lib/utils'
 import { MoreHorizontal } from 'lucide-react';
 

@@ -2,176 +2,142 @@ import FriendRequest from "../models/FriendRequest.js";
 import Friend from "../models/Friend.js";
 import User from "../models/User.js";
 import { sortedFriendPair } from "../utils/sortedFriendPair.js";
+import { asyncHandler, badRequest, forbidden, notFound } from "../utils/AppError.js";
 
-/**
- * Gửi lời mời kết bạn
- */
-export const sendFriendRequest = async (req, res) => {
-  try {
-    const { to, message } = req.body;
-    const from = req.user._id;
+const USER_FIELDS = "_id username displayName avatarUrl";
 
-    if (from.toString() === to.toString()) {
-      return res
-        .status(400)
-        .json({ message: "You cannot send friend request to yourself" });
-    }
+/** Gửi lời mời kết bạn. */
+export const sendFriendRequest = asyncHandler(async (req, res) => {
+  const { to, message } = req.body;
+  const from = req.user._id;
 
-    const userTo = await User.findById(to);
-    if (!userTo) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const [userA, userB] = sortedFriendPair(from, to);
-    const [alreadyFriend, alreadyRequested] = await Promise.all([
-      Friend.findOne({ userA, userB }),
-      FriendRequest.findOne({
-        $or: [
-          { from, to },
-          { from: to, to: from },
-        ],
-      }),
-    ]);
-
-    if (alreadyFriend) {
-      return res.status(400).json({ message: "You are already friends" });
-    }
-    if (alreadyRequested) {
-      return res.status(400).json({ message: "Friend request already sent" });
-    }
-    const newFriendRequest = await FriendRequest.create({
-      from,
-      to,
-      message,
-    });
-    return res.status(201).json({
-      message: "Friend request sent",
-      friendRequest: newFriendRequest,
-    });
-  } catch (error) {
-    console.error("Error sending friend request", error);
-    return res.status(500).json({ message: "Internal server error" });
+  if (from.toString() === to) {
+    throw badRequest("Bạn không thể tự kết bạn với chính mình");
   }
-};
 
-/**
- * Chấp nhận lời mời kết bạn
- */
-export const acceptFriendRequest = async (req, res) => {
-  try {
-    const { requestId } = req.params;
-    const userId = req.user._id;
-    const friendRequest = await FriendRequest.findById(requestId);
-    if (!friendRequest) {
-      return res.status(404).json({ message: "Friend request not found" });
-    }
-    if (friendRequest.to.toString() !== userId.toString()) {
-      return res.status(403).json({
-        message: "You are not authorized to accept this friend request",
-      });
-    }
-
-    const newFriend = await Friend.create({
-      userA: friendRequest.from,
-      userB: userId,
-    });
-    await FriendRequest.findByIdAndDelete(requestId);
-    const fromUser = await User.findById(friendRequest.from)
-      .select("_id displayName avatarUrl")
-      .lean();
-    return res.status(200).json({
-      message: "Friend request accepted",
-      newFriend: fromUser,
-      displayName: fromUser?.displayName,
-      avatarUrl: fromUser?.avatarUrl,
-    });
-  } catch (error) {
-    console.error("Error accepting friend request", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+  const userTo = await User.findById(to).select("_id").lean();
+  if (!userTo) {
+    throw notFound("Không tìm thấy người dùng");
   }
-};
 
-/**
- * Từ chối lời mời kết bạn
- */
-export const declineFriendRequest = async (req, res) => {
-  try {
-    const { requestId } = req.params;
-    const userId = req.user._id;
+  const [userA, userB] = sortedFriendPair(from, to);
+  const [alreadyFriend, alreadyRequested] = await Promise.all([
+    Friend.findOne({ userA, userB }).lean(),
+    FriendRequest.findOne({
+      $or: [
+        { from, to },
+        { from: to, to: from },
+      ],
+    }).lean(),
+  ]);
 
-    const friendRequest = await FriendRequest.findById(requestId);
-    if (!friendRequest) {
-      return res.status(404).json({ message: "Friend request not found" });
-    }
-    if (friendRequest.to.toString() !== userId.toString()) {
-      return res.status(403).json({
-        message: "You are not authorized to decline this friend request",
-      });
-    }
-
-    await FriendRequest.findByIdAndDelete(requestId);
-    return res.status(204).json({ message: "Friend request declined" });
-  } catch (error) {
-    console.error("Error declining friend request", error);
-    return res.status(500).json({ message: "Internal server error" });
+  if (alreadyFriend) {
+    throw badRequest("Hai bạn đã là bạn bè");
   }
-};
-
-/**
- *  Lấy danh sách bạn bè
- */
-export const getAllFriends = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    // Tìm trong bảng friend, lấy ra các mối quan hệ friend của user
-    const friendShips = await Friend.find({
-      $or: [{ userA: userId }, { userB: userId }],
-    })
-      .populate("userA", "_id displayName username avatarUrl")
-      .populate("userB", "_id displayName username avatarUrl")
-      .lean();
-
-    const currentUserId = userId.toString();
-
-    // Map qua các bản ghi, luôn trả về user còn lại và loại bỏ data lỗi/self
-    const friends = friendShips
-      .map((f) => {
-        const userAId = f.userA?._id?.toString();
-        const userBId = f.userB?._id?.toString();
-
-        if (userAId === currentUserId) return f.userB;
-        if (userBId === currentUserId) return f.userA;
-        return null;
-      })
-      .filter((friend) => friend && friend._id?.toString() !== currentUserId)
-      .filter(
-        (friend, index, arr) =>
-          arr.findIndex((item) => item?._id?.toString() === friend?._id?.toString()) === index
-      );
-
-    return res.status(200).json({ friends });
-  } catch (error) {
-    console.error("Error getting all friends", error);
-    return res.status(500).json({ message: "Internal server error" });
+  if (alreadyRequested) {
+    throw badRequest(
+      alreadyRequested.from.toString() === from.toString()
+        ? "Bạn đã gửi lời mời cho người này"
+        : "Người này đã gửi lời mời cho bạn, hãy kiểm tra mục thông báo"
+    );
   }
-};
 
-/** Lấy danh sách lời mời kết bạn đã gửi và đã nhận */
-export const getFriendRequests = async (req, res) => {
-  try {
-    // Lấy userId hiện tại
-    const userId = req.user._id;
-    const populateFields = "_id username displayName avatarUrl";
+  const newFriendRequest = await FriendRequest.create({ from, to, message });
 
-    // Tìm trong bảng friendRequest, dùng promiseAll để lấy ra 2 loại, sau đó trả về 2 loại đó luôn
-    const [sentRequests, receivedRequests] = await Promise.all([
-      FriendRequest.find({ from: userId }).populate("to", populateFields),
-      FriendRequest.find({ to: userId }).populate("from", populateFields),
-    ]);
+  return res.status(201).json({
+    message: "Friend request sent",
+    friendRequest: newFriendRequest,
+  });
+});
 
-    return res.status(200).json({ sentRequests, receivedRequests });
-  } catch (error) {
-    console.error("Error getting friend requests", error);
-    return res.status(500).json({ message: "Internal server error" });
+/** Chấp nhận lời mời kết bạn. */
+export const acceptFriendRequest = asyncHandler(async (req, res) => {
+  const { requestId } = req.params;
+  const userId = req.user._id;
+
+  const friendRequest = await FriendRequest.findById(requestId);
+  if (!friendRequest) {
+    throw notFound("Không tìm thấy lời mời kết bạn");
   }
-};
+  if (friendRequest.to.toString() !== userId.toString()) {
+    throw forbidden("Bạn không có quyền chấp nhận lời mời này");
+  }
+
+  const [userA, userB] = sortedFriendPair(friendRequest.from, userId);
+  // upsert thay vì create: nếu hai request chéo cùng được chấp nhận, unique
+  // index sẽ không ném lỗi và kết quả vẫn đúng một bản ghi bạn bè.
+  await Friend.updateOne({ userA, userB }, { $setOnInsert: { userA, userB } }, { upsert: true });
+
+  // Xoá cả lời mời chiều ngược lại nếu có, tránh để lại lời mời mồ côi.
+  await FriendRequest.deleteMany({
+    $or: [
+      { from: friendRequest.from, to: friendRequest.to },
+      { from: friendRequest.to, to: friendRequest.from },
+    ],
+  });
+
+  const fromUser = await User.findById(friendRequest.from).select(USER_FIELDS).lean();
+
+  return res.status(200).json({
+    message: "Friend request accepted",
+    newFriend: fromUser,
+  });
+});
+
+/** Từ chối lời mời kết bạn. */
+export const declineFriendRequest = asyncHandler(async (req, res) => {
+  const { requestId } = req.params;
+  const userId = req.user._id;
+
+  const friendRequest = await FriendRequest.findById(requestId).lean();
+  if (!friendRequest) {
+    throw notFound("Không tìm thấy lời mời kết bạn");
+  }
+  // Cả người nhận (từ chối) lẫn người gửi (thu hồi) đều được phép xoá.
+  const isRecipient = friendRequest.to.toString() === userId.toString();
+  const isSender = friendRequest.from.toString() === userId.toString();
+  if (!isRecipient && !isSender) {
+    throw forbidden("Bạn không có quyền thao tác với lời mời này");
+  }
+
+  await FriendRequest.deleteOne({ _id: requestId });
+
+  return res.sendStatus(204);
+});
+
+/** Lấy danh sách bạn bè. */
+export const getAllFriends = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const currentUserId = userId.toString();
+
+  const friendShips = await Friend.find({ $or: [{ userA: userId }, { userB: userId }] })
+    .populate("userA", USER_FIELDS)
+    .populate("userB", USER_FIELDS)
+    .lean();
+
+  const seen = new Set();
+  const friends = [];
+
+  for (const friendship of friendShips) {
+    const other =
+      friendship.userA?._id?.toString() === currentUserId ? friendship.userB : friendship.userA;
+    const otherId = other?._id?.toString();
+    if (!otherId || otherId === currentUserId || seen.has(otherId)) continue;
+    seen.add(otherId);
+    friends.push(other);
+  }
+
+  return res.status(200).json({ friends });
+});
+
+/** Lấy danh sách lời mời đã gửi và đã nhận. */
+export const getFriendRequests = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const [sentRequests, receivedRequests] = await Promise.all([
+    FriendRequest.find({ from: userId }).populate("to", USER_FIELDS).sort({ createdAt: -1 }).lean(),
+    FriendRequest.find({ to: userId }).populate("from", USER_FIELDS).sort({ createdAt: -1 }).lean(),
+  ]);
+
+  return res.status(200).json({ sentRequests, receivedRequests });
+});

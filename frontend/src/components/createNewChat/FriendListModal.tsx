@@ -1,4 +1,4 @@
-import { DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { useFriendStore } from '@/stores/useFriendStore';
 import { useChatStore } from '@/stores/useChatStore';
 import { MessageCircleMore, Users } from 'lucide-react';
@@ -25,6 +25,9 @@ const FriendListModal = ({ onConversationCreated }: FriendListModalProps) => {
           <MessageCircleMore className="size-5" />
           start a new conversation
         </DialogTitle>
+        <DialogDescription>
+          Chọn một người bạn để bắt đầu cuộc trò chuyện riêng.
+        </DialogDescription>
       </DialogHeader>
 
       {/* friend list */ }

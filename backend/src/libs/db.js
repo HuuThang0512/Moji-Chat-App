@@ -1,12 +1,13 @@
 import mongoose from "mongoose";
+import { env } from "../config/env.js";
 
 export const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_CONNECTIONSTRING);
-    console.log("Connected to MongoDB");
+    mongoose.set("strictQuery", true);
+    await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 10000 });
+    console.log("Đã kết nối MongoDB");
   } catch (error) {
-    console.log("Error connecting to MongoDB", error);
-    process.exit(1); // Để dừng chương trình
-    
+    console.error("Không kết nối được MongoDB:", error.message);
+    process.exit(1);
   }
 };

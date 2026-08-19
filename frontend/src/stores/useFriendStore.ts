@@ -1,27 +1,30 @@
+import { create } from "zustand";
+import { toast } from "sonner";
 import { friendService } from "@/services/friendService";
 import type { FriendState } from "@/types/store";
 import type { Friend } from "@/types/user";
 import { useAuthStore } from "./useAuthStore";
-import { create } from "zustand";
-
+import { getErrorMessage } from "@/lib/errors";
 
 export const useFriendStore = create<FriendState>((set, get) => ({
   friends: [],
   loading: false,
   receivedList: [],
   sentList: [],
+
   searchUserByUsername: async (username: string) => {
     try {
       set({ loading: true });
-      const user = await friendService.searchUserByUsername(username);
-      return user;
-    } catch(error) {
+      return await friendService.searchUserByUsername(username);
+    } catch (error) {
       console.error("Error searching user by username", error);
+      toast.error(getErrorMessage(error, "Không tìm được người dùng"));
       return null;
     } finally {
       set({ loading: false });
     }
   },
+
   addFriend: async (to: string, message?: string) => {
     set({ loading: true });
     try {
@@ -36,12 +39,11 @@ export const useFriendStore = create<FriendState>((set, get) => ({
   getAllFriendRequests: async () => {
     try {
       set({ loading: true });
-      const result = await friendService.getAllFriendRequests();
-      if(!result) return;
-      const { received, sent } = result;
+      const { received, sent } = await friendService.getAllFriendRequests();
       set({ receivedList: received, sentList: sent });
-    } catch(error) {
+    } catch (error) {
       console.error("Error getting all friend requests", error);
+      toast.error(getErrorMessage(error, "Không tải được danh sách lời mời"));
     } finally {
       set({ loading: false });
     }
@@ -50,12 +52,19 @@ export const useFriendStore = create<FriendState>((set, get) => ({
   acceptRequest: async (requestId: string) => {
     try {
       set({ loading: true });
-      await friendService.acceptRequest(requestId);
+      const newFriend = await friendService.acceptRequest(requestId);
       set((state) => ({
         receivedList: state.receivedList.filter((request) => request._id !== requestId),
-      }))
-    } catch(error) {
+        // Thêm ngay vào danh sách bạn để các màn hình khác không phải tải lại.
+        friends:
+          newFriend && !state.friends.some((f) => f._id === newFriend._id)
+            ? [...state.friends, newFriend]
+            : state.friends,
+      }));
+      toast.success("Đã chấp nhận lời mời kết bạn");
+    } catch (error) {
       console.error("Error accepting friend request", error);
+      toast.error(getErrorMessage(error, "Không chấp nhận được lời mời"));
     } finally {
       set({ loading: false });
     }
@@ -67,9 +76,11 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       await friendService.declineRequest(requestId);
       set((state) => ({
         receivedList: state.receivedList.filter((request) => request._id !== requestId),
-      }))
-    } catch(error) {
+        sentList: state.sentList.filter((request) => request._id !== requestId),
+      }));
+    } catch (error) {
       console.error("Error declining friend request", error);
+      toast.error(getErrorMessage(error, "Không từ chối được lời mời"));
     } finally {
       set({ loading: false });
     }
@@ -80,25 +91,23 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       set({ loading: true });
       const friends = await friendService.getFriendList();
       const currentUserId = useAuthStore.getState().user?._id;
-      const normalizedFriends: Friend[] = friends ?? [];
-      const me = currentUserId != null ? String(currentUserId) : null;
-      const safeFriends = normalizedFriends
-        .filter(
-          (friend) =>
-            friend?._id &&
-            (me == null || String(friend._id) !== me)
-        )
-        .filter(
-          (friend, index, arr) =>
-            arr.findIndex((item) => String(item._id) === String(friend._id)) ===
-            index
-        );
+
+      // Lọc phòng thủ: bỏ bản ghi thiếu _id, bỏ chính mình và bỏ trùng lặp.
+      const seen = new Set<string>();
+      const safeFriends: Friend[] = [];
+      for (const friend of friends) {
+        const id = friend?._id ? String(friend._id) : "";
+        if (!id || id === String(currentUserId) || seen.has(id)) continue;
+        seen.add(id);
+        safeFriends.push(friend);
+      }
       set({ friends: safeFriends });
-    } catch(error) {
+    } catch (error) {
       console.error("Error getting friends", error);
+      toast.error(getErrorMessage(error, "Không tải được danh sách bạn bè"));
       set({ friends: [] });
     } finally {
       set({ loading: false });
     }
-  }
-}))
+  },
+}));

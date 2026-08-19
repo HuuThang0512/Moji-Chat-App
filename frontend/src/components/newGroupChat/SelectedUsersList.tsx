@@ -1,4 +1,3 @@
-import React from 'react'
 import type { Friend } from '@/types/user';
 import UserAvatar from '../chat/UserAvatar';
 import { X } from 'lucide-react';

@@ -8,6 +8,7 @@ export interface AuthState {
     loading: boolean;
 
     setAccessToken: (accessToken: string) => void;
+    setUser: (user: User) => void;
     clearState: () => void;
     signUp: (username: string, password: string, email: string, firstName: string, lastName: string) => Promise<boolean>;
     signIn: (username: string, password: string) => Promise<boolean>;
@@ -37,13 +38,14 @@ export interface ChatState {
 
     setActiveConversationId: (id: string | null) => void;
     fetchConversations: () => Promise<void>;
-    fetchMessages: (conversationId?: string) => Promise<void>;
+    fetchMessages: (conversationId?: string, options?: { loadMore?: boolean }) => Promise<void>;
     sendDirectMessage: (recipientId: string, content: string, imgUrl?: string, conversationId?: string) => Promise<void>;
     sendGroupMessage: (conversationId: string, content: string, imgUrl?: string) => Promise<void>;
-    addMessage: (message: Message) => Promise<void>;
-    updateConversation: (conversation: Conversation) => void;
+    addMessage: (message: Message) => void;
+    /** Trộn phần thay đổi vào conversation sẵn có; luôn phải kèm _id để tìm đúng bản ghi. */
+    updateConversation: (patch: Partial<Conversation> & { _id: string }) => void;
     markAsSeen: () => Promise<void>;
-    addConvo: (convo: Conversation) => void;
+    addConvo: (convo: Conversation, options?: { activate?: boolean }) => void;
     createConversation: (type: "direct" | "group", memberIds: string[], name?: string) => Promise<void>;
 }
 
@@ -66,4 +68,8 @@ export interface FriendState {
     acceptRequest: (requestId: string) => Promise<void>;
     declineRequest: (requestId: string) => Promise<void>;
     getFriends: () => Promise<void>;
+}
+
+export interface UserState {
+    updateAvatarUrl: (formData: FormData) => Promise<void>;
 }

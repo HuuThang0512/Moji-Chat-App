@@ -1,9 +1,8 @@
-import React from 'react'
 import { useChatStore } from '@/stores/useChatStore'
 import GroupChatCard from './GroupChatCard'
 
 const GroupChatList = () => {
-  const { conversations, conversationLoading: loading } = useChatStore();
+  const { conversations } = useChatStore();
   if (!conversations || conversations.length === 0) {
     return;
   }

@@ -1,31 +1,37 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { env } from "../config/env.js";
+import { unauthorized } from "../utils/AppError.js";
 
+/**
+ * Xác thực access token trong header Authorization.
+ * Trả 401 cho mọi trường hợp token thiếu / sai / hết hạn để client biết cần
+ * gọi /auth/refresh. Mã 403 được dành riêng cho "đã đăng nhập nhưng không đủ quyền".
+ */
 export const protectedRoute = async (req, res, next) => {
   try {
-    // Lấy token từ header
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(" ")[1];
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
 
-    // Xác nhận token hợp lệ
     if (!token) {
-      return res.status(403).json({ message: "Unauthorized" });
-    } 
+      return next(unauthorized("Thiếu access token"));
+    }
 
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, async (error, decodedUser) => {
-        if (error) {
-            console.error("Error verifying token", error);
-            return res.status(403).json({ message: "Access token is not valid or expired" });
-        }
-        const user = await User.findById(decodedUser.userId).select("-hashedPassword");
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-        req.user = user;
-        next();
-    })
+    let decoded;
+    try {
+      decoded = jwt.verify(token, env.accessTokenSecret);
+    } catch {
+      return next(unauthorized("Access token không hợp lệ hoặc đã hết hạn"));
+    }
+
+    const user = await User.findById(decoded.userId).select("-hashedPassword");
+    if (!user) {
+      return next(unauthorized("Người dùng không tồn tại"));
+    }
+
+    req.user = user;
+    return next();
   } catch (error) {
-    console.error("Error in protectedRoute middleware", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return next(error);
   }
 };

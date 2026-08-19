@@ -1,5 +1,5 @@
+import { useEffect } from 'react'
 import { useChatStore } from '@/stores/useChatStore';
-import React,{ useEffect } from 'react'
 import ChatWelcomeScreen from './ChatWelcomeScreen';
 import ChatWindowSkeleton from './ChatWindowSkeleton';
 import { SidebarInset } from '../ui/sidebar';
@@ -7,45 +7,43 @@ import ChatWindowHeader from './ChatWindowHeader';
 import ChatWindowBody from './ChatWindowBody';
 import MessageInput from './MessageInput';
 
-type Props = {}
-
-const ChatWindowLayout = (props: Props) => {
-  const { activeConversationId,conversations,messages,messagesLoading: loading,markAsSeen } = useChatStore();
+const ChatWindowLayout = () => {
+  const { activeConversationId, conversations, messages, messagesLoading, markAsSeen } = useChatStore();
   const selectedConvo = conversations.find(convo => convo._id === activeConversationId);
 
-  useEffect(() => {
-    if(!selectedConvo) return;
+  // Chỉ hiện skeleton ở lần tải đầu của cuộc trò chuyện. Nếu bám theo
+  // messagesLoading nói chung thì mỗi lần cuộn lên tải thêm trang cũ, cả cửa
+  // sổ chat sẽ nháy trắng.
+  const isFirstLoad = Boolean(
+    activeConversationId && messagesLoading && !messages[activeConversationId]
+  );
 
-    const markSeen = async () => {
-      try {
-        await markAsSeen();
-      } catch(error) {
-        console.error("Error marking as seen",error);
-      }
-    }
-    markSeen();
-  }, [markAsSeen, selectedConvo]);
-  if(!selectedConvo) {
+  useEffect(() => {
+    if (!activeConversationId) return;
+    markAsSeen();
+  }, [activeConversationId, markAsSeen]);
+
+  if (!selectedConvo) {
     return <ChatWelcomeScreen />;
   }
-  if(loading) {
-    return <ChatWindowSkeleton />
+
+  if (isFirstLoad) {
+    return <ChatWindowSkeleton />;
   }
 
   return (
     <SidebarInset className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-sm shadow-md">
-      {/* Header */ }
-      <ChatWindowHeader chat={ selectedConvo } />
+      {/* Header */}
+      <ChatWindowHeader chat={selectedConvo} />
 
-      {/* Body */ }
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-primary-foreground [scrollbar-gutter:stable]">
+      {/* Body - ChatWindowBody tự quản lý vùng cuộn, ở đây chỉ cần khung co giãn */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-primary-foreground">
         <ChatWindowBody />
       </div>
 
-      {/* Footer */ }
-      <MessageInput selectedConvo={ selectedConvo } />
+      {/* Footer */}
+      <MessageInput selectedConvo={selectedConvo} />
     </SidebarInset>
-
   )
 }
 

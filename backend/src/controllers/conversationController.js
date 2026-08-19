@@ -1,250 +1,187 @@
 import Conversation from "../models/Conversation.js";
-import User from "../models/User.js";
 import Message from "../models/Message.js";
 import { io } from "../socket/index.js";
+import { asyncHandler, notFound } from "../utils/AppError.js";
 
-export const createConversation = async (req, res) => {
-  try {
-    const { type, memberIds, name } = req.body;
-    const senderId = req.user._id;
-    // Kiểm tra nếu như không có type, hoặc là group nhưng điều kiện group sai
-    if(
-      !type ||
-      (type == "group" &&
-        (!name ||
-          !memberIds ||
-          !Array.isArray(memberIds) ||
-          memberIds.length < 2))
-    ) {
-      return res.status(400).json({ message: "Invalid request body" });
-    }
+const POPULATE_CONVERSATION = [
+  { path: "participants.userId", select: "_id displayName username avatarUrl" },
+  { path: "seenBy.userId", select: "_id displayName avatarUrl" },
+  { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
+];
 
-    let conversation;
-
-    // Nếu là direct thì kiểm tra conversation đã có chưa, nếu chưa thì tạo mới
-    if(type == "direct") {
-      const toUserId = memberIds[0];
-      conversation = await Conversation.findOne({
-        type: "direct",
-        "participants.userId": { $all: [senderId, toUserId] },
-      });
-      if(!conversation) {
-        conversation = await Conversation.create({
-          type: "direct",
-          participants: [
-            { userId: senderId, joinedAt: new Date() },
-            { userId: toUserId, joinedAt: new Date() },
-          ],
-          lastMessageAt: new Date(),
-          unreadCount: new Map(),
-        });
-      }
-      await conversation.save();
-    }
-
-    // Nếu là nhóm thì tạo nhóm mới
-    if((type == "group")) {
-      conversation = await Conversation.create({
-        type: "group",
-        participants: [
-          { userId: senderId, joinedAt: new Date() },
-          ...memberIds.map((id) => ({ userId: id, joinedAt: new Date() })),
-        ],
-        group: { name: name, createdBy: senderId },
-        lastMessageAt: new Date(),
-        unreadCount: new Map(),
-      });
-      await conversation.save();
-    }
-
-    if(!conversation) {
-      return res.status(404).json({ message: "Conversation not found" });
-    }
-
-    // Populate để trả về thêm thông tin của conversation
-    await conversation.populate([
-      { path: "participants.userId", select: "_id displayName username avatarUrl" },
-      { path: "seenBy.userId", select: "_id displayName avatarUrl" },
-      { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
-    ]);
-
-    const paticipants = (conversation.participants || []).map((p) => ({
-      _id: p.userId?._id,
+/** Làm phẳng participants để client không phải lặn vào participant.userId. */
+const formatConversation = (conversation) => {
+  const plain = conversation.toObject ? conversation.toObject({ flattenMaps: true }) : conversation;
+  return {
+    ...plain,
+    participants: (conversation.participants ?? []).map((p) => ({
+      _id: p.userId?._id ?? p.userId,
       displayName: p.userId?.displayName,
       username: p.userId?.username,
       avatarUrl: p.userId?.avatarUrl ?? null,
       joinedAt: p.joinedAt,
-    }))
-
-    const formatted = {
-      ...conversation.toObject(),
-      participants: paticipants,
-    }
-
-    if (type == "group") {
-      memberIds.forEach((userId) => {
-        io.to(userId).emit("new-group", formatted);
-      })
-    }
-
-    return res.status(201).json({ conversation: formatted });
-  } catch(error) {
-    console.error("Error creating conversation", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
-  }
+    })),
+  };
 };
 
-export const getConversations = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const conversations = await Conversation.find({
-      "participants.userId": userId,
-    })
-      .sort({ lastMessageAt: -1, updatedAt: -1 })
-      .populate([
-        { path: "participants.userId", select: "_id displayName username avatarUrl" },
-        { path: "seenBy.userId", select: "_id displayName avatarUrl" },
-        { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
-      ]);
+export const createConversation = asyncHandler(async (req, res) => {
+  const { type, memberIds, name } = req.body;
+  const senderId = req.user._id;
 
-    // Format lại data conversation để trả về js dễ sử dụng
-    const fomatted = conversations.map((convo) => {
-      const paticipants = (convo.participants || []).map((p) => ({
-        _id: p.userId?._id,
-        displayName: p.userId?.displayName,
-        username: p.userId?.username,
-        avatarUrl: p.userId?.avatarUrl ?? null,
-        joinedAt: p.joinedAt,
-      }));
-      const conversationObject = convo.toObject({ flattenMaps: true });
-      // const unreadCount = conversationObject.unreadCount ?? {};
-      // const lastMessage = conversationObject.lastMessage ?? null;
-      return {
-        ...conversationObject,
-        // unreadCount,
-        // lastMessage,
-        participants: paticipants,
-      };
+  let conversation;
+
+  if (type === "direct") {
+    const toUserId = memberIds[0];
+    conversation = await Conversation.findOne({
+      type: "direct",
+      "participants.userId": { $all: [senderId, toUserId] },
     });
-    return res.status(200).json({ conversations: fomatted });
-  } catch {
-    console.error("Error getting conversations", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
 
-export const getMessages = async (req, res) => {
-  /**
-   * Giải thích đoạn code:
-   * Đây là hàm lấy danh sách tin nhắn cho một cuộc trò chuyện với phân trang (cursor-based pagination).
-   * 
-   * 1. Lấy conversationId từ tham số đường dẫn (req.params), lấy limit (mặc định 50) và cursor (thời gian tin nhắn) từ query string.
-   * 2. Tạo query để tìm các tin nhắn thuộc conversationId đã cho.
-   *    - Nếu có cursor, chỉ lấy các tin nhắn có createdAt nhỏ hơn cursor (tức là các tin nhắn cũ hơn cursor).
-   * 3. Tìm các tin nhắn theo query, sắp xếp giảm dần theo createdAt (tin nhắn mới nhất trước), 
-   *    và lấy limit + 1 tin nhắn (để kiểm tra còn tin nhắn cũ hơn nữa không).
-   * 4. Kiểm tra nếu có nhiều hơn limit tin nhắn, nghĩa là còn trang sau:
-   *    - nextCursor sẽ là createdAt của tin nhắn cuối cùng (dùng cho lần truy vấn tiếp theo).
-   *    - Xóa tin nhắn thừa ra khỏi danh sách trả về cho client.
-   * 5. Đảo ngược mảng tin nhắn trước khi trả về để client hiển thị đúng thứ tự tăng dần thời gian.
-   * 6. Trả về JSON gồm messages và nextCursor (nếu có tiếp).
-   */
-
-  try {
-    const { conversationId } = req.params; // Lấy conversationId từ URL
-    const { limit = 50, cursor } = req.query; // limit mặc định là 50, cursor là mốc thời gian
-    const query = { conversationId };
-    if(cursor) {
-      // Nếu có cursor thì chỉ lấy các tin nhắn cũ hơn nó
-      query.createdAt = { $lt: new Date(cursor) };
+    if (!conversation) {
+      conversation = await Conversation.create({
+        type: "direct",
+        participants: [
+          { userId: senderId, joinedAt: new Date() },
+          { userId: toUserId, joinedAt: new Date() },
+        ],
+        lastMessageAt: new Date(),
+        unreadCount: new Map(),
+      });
     }
-    let messages = await Message.find(query)
-      .sort({ createdAt: -1 }) // Sắp xếp mới nhất trước
-      .limit(Number(limit) + 1); // Lấy thừa 1 tin nhắn để kiểm tra còn nữa không
+  } else {
+    // Loại bỏ trùng lặp và loại chính người tạo ra khỏi memberIds trước khi ghép.
+    const uniqueMemberIds = [
+      ...new Set(memberIds.map(String).filter((id) => id !== senderId.toString())),
+    ];
 
-    const hasMore = messages.length > limit;
-    let nextCursor = null;
-    if(hasMore) {
-      // Nếu còn trang sau thì trả về cursor cho lần sau, và bỏ tin nhắn thừa đi
-      nextCursor = messages[messages.length - 1].createdAt.toISOString();
-      messages.pop();
-    }
-    messages.reverse(); // Đảo thứ tự lại cho client hiện thị từ cũ đến mới
-    return res.status(200).json({ messages, nextCursor });
-  } catch(error) {
-    console.error("Error getting messages", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    conversation = await Conversation.create({
+      type: "group",
+      participants: [
+        { userId: senderId, joinedAt: new Date() },
+        ...uniqueMemberIds.map((id) => ({ userId: id, joinedAt: new Date() })),
+      ],
+      group: { name, createdBy: senderId },
+      lastMessageAt: new Date(),
+      unreadCount: new Map(),
+    });
   }
-};
+
+  await conversation.populate(POPULATE_CONVERSATION);
+  const formatted = formatConversation(conversation);
+
+  if (type === "group") {
+    formatted.participants
+      .map((participant) => participant._id.toString())
+      .filter((id) => id !== senderId.toString())
+      .forEach((id) => io.to(id).emit("new-group", formatted));
+  }
+
+  return res.status(201).json({ conversation: formatted });
+});
+
+export const getConversations = asyncHandler(async (req, res) => {
+  const conversations = await Conversation.find({ "participants.userId": req.user._id })
+    .sort({ lastMessageAt: -1, updatedAt: -1 })
+    .populate(POPULATE_CONVERSATION);
+
+  return res.status(200).json({ conversations: conversations.map(formatConversation) });
+});
+
+/**
+ * Lấy tin nhắn theo cursor-based pagination.
+ * Sắp xếp giảm dần theo createdAt rồi lấy thừa một bản ghi để biết còn trang cũ
+ * hơn hay không; bản ghi thừa bị loại ra và createdAt của nó thành cursor kế tiếp.
+ * Mảng được đảo lại trước khi trả về để client hiển thị từ cũ tới mới.
+ */
+export const getMessages = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const { limit, cursor } = req.validatedQuery;
+
+  const query = { conversationId };
+  if (cursor) {
+    query.createdAt = { $lt: new Date(cursor) };
+  }
+
+  const messages = await Message.find(query).sort({ createdAt: -1 }).limit(limit + 1).lean();
+
+  const hasMore = messages.length > limit;
+  let nextCursor = null;
+  if (hasMore) {
+    messages.pop();
+    nextCursor = messages[messages.length - 1].createdAt.toISOString();
+  }
+
+  messages.reverse();
+  return res.status(200).json({ messages, nextCursor });
+});
 
 export const getUserConversationsForSocketIO = async (userId) => {
   try {
-    const conversations = await Conversation.find({
-      "participants.userId": userId,
-    }, {
-      _id: 1,
-    })
-    return conversations.map((convo) => convo._id.toString());
-  } catch(error) {
+    const conversations = await Conversation.find({ "participants.userId": userId }, { _id: 1 }).lean();
+    return conversations.map((conversation) => conversation._id.toString());
+  } catch (error) {
     console.error("Error getting user conversations for socketIO", error);
     return [];
   }
-}
+};
 
-export const markAsSeen = async (req, res) => {
+/** Dùng bởi socket để chặn việc join vào phòng của cuộc trò chuyện không thuộc về mình. */
+export const isUserInConversation = async (conversationId, userId) => {
   try {
-    const { conversationId } = req.params;
-    const userId = req.user._id.toString();
-
-    const conversation = await Conversation.findById(conversationId).lean();
-
-    if(!conversation) {
-      return res.status(404).json({ message: "Conversation not found" });
-    }
-
-    const last = conversation.lastMessage;
-
-    if(!last) {
-      return res.status(200).json({ message: "Conversation has no last message" });
-    }
-
-    if(last.senderId.toString() === userId) {
-      return res.status(200).json({ message: "You are the last message sender" });
-    }
-
-    const updated = await Conversation.findByIdAndUpdate(conversationId, {
-      $addToSet: {
-        seenBy: { userId }
-      },
-      $set: { [`unreadCount.${userId}`]: 0 }
-    }, {
-      new: true,
-    }).populate([
-      { path: "seenBy.userId", select: "_id displayName avatarUrl" },
-      { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
-    ]);
-    const updatedConversation = updated?.toObject({ flattenMaps: true });
-
-    io.to(conversationId).emit("read-message", {
-      conversation: updatedConversation,
-      lastMessage: {
-        _id: updated?.lastMessage._id,
-        content: updated?.lastMessage.content,
-        createdAt: updated?.lastMessage.createdAt,
-        sender: {
-          _id: updated?.lastMessage.senderId,
-        }
-      }
-    })
-
-    return res.status(200).json({
-      message: "Marked as seen",
-      seenBy: updatedConversation?.seenBy || [],
-      myUnreadCount: updatedConversation?.unreadCount?.[userId] || 0
+    if (!/^[0-9a-fA-F]{24}$/.test(String(conversationId ?? ""))) return false;
+    const found = await Conversation.exists({
+      _id: conversationId,
+      "participants.userId": userId,
     });
-
-  } catch(error) {
-    console.error("Error marking as seen", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    return Boolean(found);
+  } catch (error) {
+    console.error("Error checking conversation membership", error);
+    return false;
   }
-}
+};
+
+export const markAsSeen = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const userId = req.user._id.toString();
+  const conversation = req.conversation;
+
+  if (!conversation) {
+    throw notFound("Conversation not found");
+  }
+
+  const last = conversation.lastMessage;
+  if (!last) {
+    return res.status(200).json({ message: "Conversation has no last message", seenBy: [], myUnreadCount: 0 });
+  }
+  if (last.senderId.toString() === userId) {
+    return res.status(200).json({ message: "You are the last message sender", seenBy: conversation.seenBy ?? [], myUnreadCount: 0 });
+  }
+
+  const updated = await Conversation.findByIdAndUpdate(
+    conversationId,
+    {
+      $addToSet: { seenBy: { userId } },
+      $set: { [`unreadCount.${userId}`]: 0 },
+    },
+    { new: true }
+  ).populate([
+    { path: "seenBy.userId", select: "_id displayName avatarUrl" },
+    { path: "lastMessage.senderId", select: "_id displayName avatarUrl" },
+  ]);
+
+  const plain = updated?.toObject({ flattenMaps: true });
+
+  // Chỉ phát phần thực sự thay đổi. Trước đây payload chứa một conversation
+  // thiếu participants/type khiến client ghi đè mất dữ liệu của conversation.
+  io.to(conversationId.toString()).emit("read-message", {
+    conversationId: conversationId.toString(),
+    seenBy: plain?.seenBy ?? [],
+    unreadCount: plain?.unreadCount ?? {},
+  });
+
+  return res.status(200).json({
+    message: "Marked as seen",
+    seenBy: plain?.seenBy ?? [],
+    myUnreadCount: plain?.unreadCount?.[userId] ?? 0,
+  });
+});

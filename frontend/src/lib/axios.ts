@@ -1,13 +1,16 @@
+import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/stores/useAuthStore";
-import axios from "axios";
 
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_URL,
-  withCredentials: true, // Để gửi cookie đến backend
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true, // Để gửi cookie refreshToken đến backend
 });
 
-// Gắn AT vào  req header
+/** Những route không bao giờ được thử refresh, tránh vòng lặp vô hạn. */
+const NO_REFRESH_PATHS = ["/auth/signin", "/auth/signup", "/auth/refresh", "/auth/signout"];
+
+type RetriableConfig = AxiosRequestConfig & { _retried?: boolean; url?: string };
+
 api.interceptors.request.use((config) => {
   const { accessToken } = useAuthStore.getState();
   if (accessToken) {
@@ -16,39 +19,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * Chỉ cho phép đúng một lần gọi /auth/refresh tại một thời điểm.
+ * Khi access token hết hạn, nhiều request thường lỗi 401 cùng lúc; nếu mỗi
+ * request tự gọi refresh thì server nhận cả loạt request trùng nhau.
+ * Các request còn lại chờ chung một promise rồi thử lại với token mới.
+ */
+let refreshPromise: Promise<string> | null = null;
+
+const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post("/auth/refresh", {})
+      .then((res) => {
+        const { accessToken, user } = res.data;
+        useAuthStore.getState().setAccessToken(accessToken);
+        if (user) useAuthStore.getState().setUser(user);
+        return accessToken as string;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
 api.interceptors.response.use(
   (res) => res,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetriableConfig | undefined;
+    const status = error.response?.status;
 
     if (
-      originalRequest.url.includes("/auth/signin") ||
-      originalRequest.url.includes("/auth/signup") ||
-      originalRequest.url.includes("/auth/refresh")
+      !originalRequest ||
+      originalRequest._retried ||
+      status !== 401 ||
+      NO_REFRESH_PATHS.some((path) => originalRequest.url?.includes(path))
     ) {
       return Promise.reject(error);
     }
-    originalRequest._retryCount = originalRequest._retryCount || 0;
-    if (error.response?.status === 403 && originalRequest._retryCount < 4) {
-      originalRequest._retryCount++;
-      try {
-        const res = await api.post(
-          "/auth/refresh",
-          {},
-          {
-            withCredentials: true,
-          }
-        );
-        const newAccessToken = res.data.accessToken;
-        useAuthStore.getState().setAccessToken(newAccessToken);
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        return api(originalRequest);
-      } catch (error) {
-        useAuthStore.getState().clearState();
-        return Promise.reject(error);
+
+    originalRequest._retried = true;
+    try {
+      const newAccessToken = await refreshAccessToken();
+      originalRequest.headers = {
+        ...originalRequest.headers,
+        Authorization: `Bearer ${newAccessToken}`,
+      };
+      return api(originalRequest);
+    } catch (refreshError) {
+      useAuthStore.getState().clearState();
+      if (!window.location.pathname.startsWith("/signin")) {
+        window.location.assign("/signin");
       }
+      return Promise.reject(refreshError);
     }
-    return Promise.reject(error);
   }
 );
 

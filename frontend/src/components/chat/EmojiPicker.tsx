@@ -1,29 +1,65 @@
-import { useThemeStore } from '@/stores/useThemeStore';
-import React from 'react'
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Smile } from 'lucide-react';
-import Picker from '@emoji-mart/react';
-import data from '@emoji-mart/data';
+import { useThemeStore } from '@/stores/useThemeStore';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+
+/**
+ * emoji-mart cùng bộ dữ liệu của nó nặng gần 1MB.
+ * Nạp động chỉ khi người dùng thực sự mở bảng emoji, để bundle khởi động của
+ * ứng dụng không phải gánh phần này.
+ */
+const Picker = lazy(() => import('@emoji-mart/react'));
 
 interface EmojiPickerProps {
-  onChange(emoji: any): void;
+  onChange: (emoji: string) => void;
 }
 
-const EmojiPicker = (props: EmojiPickerProps) => {
-  const { onChange } = props;
-  const {isDark} = useThemeStore()
+interface EmojiSelection {
+  native: string;
+}
+
+const EmojiPicker = ({ onChange }: EmojiPickerProps) => {
+  const isDark = useThemeStore((state) => state.isDark);
+  const [open, setOpen] = useState(false);
+  const [emojiData, setEmojiData] = useState<unknown>(null);
+
+  useEffect(() => {
+    if (!open || emojiData) return;
+    let cancelled = false;
+    import('@emoji-mart/data').then((module) => {
+      if (!cancelled) setEmojiData(module.default);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, emojiData]);
 
   return (
-    <Popover>
-      <PopoverTrigger className='cursor-pointer'>
-        <Smile className='size-4' />
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger className="cursor-pointer" aria-label="Chọn emoji">
+        <Smile className="size-4" />
       </PopoverTrigger>
 
-      <PopoverContent side="right" sideOffset={40} className="bg-transparent shadow-none boder-none drop-shadow-none mb-12">
-        <Picker data={data} onEmojiSelect={(emoji: any) => onChange(emoji.native)} theme={isDark ? 'dark' : 'light'} />
+      <PopoverContent
+        side="top"
+        align="end"
+        className="w-auto border-none bg-transparent p-0 shadow-none drop-shadow-none"
+      >
+        <Suspense fallback={<div className="p-4 text-xs text-muted-foreground">Đang tải emoji...</div>}>
+          {emojiData ? (
+            <Picker
+              data={emojiData}
+              theme={isDark ? 'dark' : 'light'}
+              previewPosition="none"
+              onEmojiSelect={(emoji: EmojiSelection) => onChange(emoji.native)}
+            />
+          ) : (
+            <div className="p-4 text-xs text-muted-foreground">Đang tải emoji...</div>
+          )}
+        </Suspense>
       </PopoverContent>
     </Popover>
-  )
-}
+  );
+};
 
-export default EmojiPicker
+export default EmojiPicker;

@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.git
+**/.env
+**/.env.*
+!frontend/.env.production
+**/npm-debug.log*
+**/.vscode
+**/.idea
+**/*.md
+!README.md
+Dockerfile
+.dockerignore

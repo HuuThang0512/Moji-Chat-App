@@ -1,4 +1,3 @@
-import React from 'react'
 import { SignInForm } from '@/components/auth/signin-form'
 
 const SignInPage = () => {

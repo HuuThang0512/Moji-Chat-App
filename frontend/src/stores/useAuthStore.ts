@@ -1,122 +1,128 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { persist } from "zustand/middleware";
 import { authService } from "@/services/authService";
 import type { AuthState } from "@/types/store";
-import { persist } from "zustand/middleware";
+import type { User } from "@/types/user";
 import { useChatStore } from "./useChatStore";
+import { useSocketStore } from "./useSocketStore";
+import { getErrorMessage } from "@/lib/errors";
+
+const AUTH_STORAGE_KEY = "auth-storage";
 
 export const useAuthStore = create<AuthState>()(
-  persist((set, get) => ({
-    accessToken: null,
-    user: null,
-    loading: false,
+  persist(
+    (set, get) => ({
+      accessToken: null,
+      user: null,
+      loading: false,
 
-    setAccessToken: (accessToken: string) => {
-      set({ accessToken });
-    },
+      setAccessToken: (accessToken: string) => {
+        set({ accessToken });
+      },
 
-    clearState: () => {
-      set({ accessToken: null, user: null, loading: false });
-      useChatStore.getState().reset();
-      localStorage.clear();
-      sessionStorage.clear();
-    },
-
-    signUp: async (
-      username: string,
-      password: string,
-      email: string,
-      firstName: string,
-      lastName: string
-    ) => {
-      try {
-        set({ loading: true });
-        const res = await authService.signUp(
-          username,
-          password,
-          email,
-          firstName,
-          lastName
-        );
-        toast.success("Sign up successful");
-        return true; // Trả về true khi thành công
-      } catch (error) {
-        console.error("Error signing up", error);
-        toast.error("Failed to sign up");
-        return false; // Trả về false khi thất bại
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    signIn: async (username: string, password: string) => {
-      try {
-        get().clearState();
-        set({ loading: true });
-        
-        const { accessToken } = await authService.signIn(username, password);
-        get().setAccessToken(accessToken);
-
-        await get().fetchMe();
-        await useChatStore.getState().fetchConversations();
-        
-        toast.success("Sign in successful");
-        return true; // Trả về true khi thành công
-      } catch (error) {
-        console.error("Error signing in", error);
-        toast.error("Failed to sign in");
-        return false; // Trả về false khi thất bại
-      } finally {
-        set({ loading: false });
-      }
-    },
-    signOut: async () => {
-      try {
-        set({ loading: true });
-        await authService.signOut();
-        get().clearState();
-        toast.success("Sign out successful");
-        return true; // Trả về true khi thành công
-      } catch (error) {
-        console.error("Error signing out", error);
-        toast.error("Failed to sign out");
-        return false; // Trả về false khi thất bại
-      } finally {
-        set({ loading: false });
-      }
-    },
-    fetchMe: async () => {
-      try {
-        set({ loading: true });
-        const user = await authService.fetchMe();
+      setUser: (user: User) => {
         set({ user });
-      } catch (error) {
-        console.error("Error fetching me", error);
-        set({ user: null, accessToken: null });
-        toast.error("Failed to fetch information of user");
-      } finally {
-        set({ loading: false });
-      }
-    },
-    refresh: async () => {
-      try {
-        set({ loading: true });
-        const res = await authService.refresh();
-        get().setAccessToken(res.accessToken);
-        if (!get().user) {
-          await get().fetchMe();
+      },
+
+      /**
+       * Xoá toàn bộ dấu vết phiên đăng nhập.
+       * Chỉ xoá đúng key của auth thay vì localStorage.clear(), nếu không thì
+       * cả lựa chọn giao diện sáng/tối của người dùng cũng bị xoá theo.
+       */
+      clearState: () => {
+        set({ accessToken: null, user: null, loading: false });
+        useChatStore.getState().reset();
+        useSocketStore.getState().disconnectSocket();
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      },
+
+      signUp: async (username, password, email, firstName, lastName) => {
+        try {
+          set({ loading: true });
+          await authService.signUp(username, password, email, firstName, lastName);
+          toast.success("Đăng ký thành công, hãy đăng nhập");
+          return true;
+        } catch (error) {
+          console.error("Error signing up", error);
+          toast.error(getErrorMessage(error, "Đăng ký thất bại"));
+          return false;
+        } finally {
+          set({ loading: false });
         }
-      } catch (error) {
-        console.error("Error refreshing token", error);
-        toast.error("Your session has expired, please sign in again");
-      } finally {
-        set({ loading: false });
-      }
+      },
+
+      signIn: async (username: string, password: string) => {
+        try {
+          get().clearState();
+          set({ loading: true });
+
+          // Backend trả kèm user ngay trong response đăng nhập nên không cần
+          // gọi thêm /users/me.
+          const { accessToken, user } = await authService.signIn(username, password);
+          set({ accessToken, user: user ?? null });
+
+          if (!user) await get().fetchMe();
+          await useChatStore.getState().fetchConversations();
+
+          toast.success("Đăng nhập thành công");
+          return true;
+        } catch (error) {
+          console.error("Error signing in", error);
+          toast.error(getErrorMessage(error, "Đăng nhập thất bại"));
+          return false;
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      signOut: async () => {
+        try {
+          set({ loading: true });
+          await authService.signOut();
+          return true;
+        } catch (error) {
+          console.error("Error signing out", error);
+          return false;
+        } finally {
+          // Luôn dọn state ở client kể cả khi gọi API thất bại, để người dùng
+          // không bị kẹt trong trạng thái đăng nhập dở dang.
+          get().clearState();
+          toast.success("Đã đăng xuất");
+        }
+      },
+
+      fetchMe: async () => {
+        try {
+          set({ loading: true });
+          const user = await authService.fetchMe();
+          set({ user });
+        } catch (error) {
+          console.error("Error fetching me", error);
+          set({ user: null, accessToken: null });
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      refresh: async () => {
+        try {
+          set({ loading: true });
+          const { accessToken, user } = await authService.refresh();
+          set({ accessToken, ...(user ? { user } : {}) });
+          if (!get().user) await get().fetchMe();
+        } catch {
+          // Không có phiên hợp lệ là trường hợp bình thường khi mở app lần đầu,
+          // nên chỉ dọn state chứ không hiện lỗi.
+          set({ accessToken: null, user: null });
+        } finally {
+          set({ loading: false });
+        }
+      },
+    }),
+    {
+      name: AUTH_STORAGE_KEY,
+      partialize: (state) => ({ user: state.user }),
     }
-  }), {
-    name: "auth-storage",
-    partialize: (state) => ({
-      user: state.user,
-    })
-  })
+  )
 );

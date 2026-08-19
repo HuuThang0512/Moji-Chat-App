@@ -5,16 +5,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  {
-    ignores: ["dist"],
-  },
+  { ignores: ["dist", "node_modules"] },
+
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
 
   {
     files: ["**/*.{ts,tsx}"],
 
     languageOptions: {
-      confirmTypeScript: true, // 👈 QUAN TRỌNG
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       sourceType: "module",
       globals: globals.browser,
     },
@@ -25,18 +25,23 @@ export default tseslint.config(
     },
 
     rules: {
-      // JS
-      ...js.configs.recommended.rules,
-
-      // TS (BẮT BUỘC, nếu không sẽ parse lỗi)
-      ...tseslint.configs.recommended.rules,
-
-      // React
       ...reactHooks.configs.recommended.rules,
       ...reactRefresh.configs.vite.rules,
 
-      // 🔥 Tắt unused-vars
-      "@typescript-eslint/no-unused-vars": "off",
+      // Cho phép đặt tên biến bỏ qua bằng tiền tố _ thay vì tắt hẳn luật.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+
+  {
+    // Các file trong components/ui do shadcn sinh ra và cố tình export kèm
+    // biến thể (cva) bên cạnh component, nên tắt riêng luật fast refresh ở đây.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
     },
   }
 );

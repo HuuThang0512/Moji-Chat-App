@@ -1,0 +1,33 @@
+# Blueprint cho Render. Vào Render > New > Blueprint và trỏ tới repo này,
+# Render sẽ đọc file này thay vì phải bấm cấu hình bằng tay.
+services:
+  - type: web
+    name: moji
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render tự cấp PORT và ghi đè giá trị này; server đọc process.env.PORT.
+      - key: PORT
+        value: 5001
+
+      # sync: false = Render hỏi giá trị khi tạo service và không lưu vào git.
+      - key: MONGODB_CONNECTIONSTRING
+        sync: false
+      - key: ACCESS_TOKEN_SECRET
+        sync: false
+
+      # Tuỳ chọn - thiếu thì chỉ chức năng tải ảnh đại diện trả về 503.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

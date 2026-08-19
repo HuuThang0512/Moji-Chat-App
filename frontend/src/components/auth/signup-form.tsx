@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,16 +10,23 @@ import { z } from "zod";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useNavigate } from "react-router";
 
+// Giữ đồng bộ với backend/src/utils/schemas.js, nếu lệch nhau người dùng sẽ
+// qua được form nhưng bị server trả 400 mà không hiểu vì sao.
 const signUpSchema = z.object({
-  firstname: z.string().min(1, { message: "First name is required" }),
-  lastname: z.string().min(1, { message: "Last name is required" }),
+  firstname: z.string().trim().min(1, { message: "Vui lòng nhập họ" }).max(50),
+  lastname: z.string().trim().min(1, { message: "Vui lòng nhập tên" }).max(50),
   username: z
     .string()
-    .min(3, { message: "Username must be at least 3 characters long" }),
-  email: z.string().email({ message: "Invalid email address" }),
+    .trim()
+    .toLowerCase()
+    .min(3, { message: "Username tối thiểu 3 ký tự" })
+    .max(30, { message: "Username tối đa 30 ký tự" })
+    .regex(/^[a-z0-9._-]+$/, { message: "Username chỉ gồm chữ, số và . _ -" }),
+  email: z.email({ message: "Email không hợp lệ" }).trim().toLowerCase(),
   password: z
     .string()
-    .min(6, { message: "Password must be at least 6 characters long" }),
+    .min(6, { message: "Mật khẩu tối thiểu 6 ký tự" })
+    .max(128, { message: "Mật khẩu tối đa 128 ký tự" }),
 });
 
 type SignUpFormValues = z.infer<typeof signUpSchema>;

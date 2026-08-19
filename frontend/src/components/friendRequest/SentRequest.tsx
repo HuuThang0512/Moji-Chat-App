@@ -1,5 +1,4 @@
 import { useFriendStore } from '@/stores/useFriendStore';
-import React from 'react'
 import FriendRequestItem from './FriendRequestItem';
 
 const SentRequest = () => {
