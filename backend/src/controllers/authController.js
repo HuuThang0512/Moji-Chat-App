@@ -99,6 +99,52 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   return res.sendStatus(204);
 });
 
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email }).select("_id email");
+
+  /**
+   * Luôn trả 204 kể cả không tìm thấy user.
+   * Nếu phân biệt hai trường hợp, người lạ dò được địa chỉ email nào đã đăng ký
+   * chỉ bằng cách thử lần lượt.
+   */
+  if (user) {
+    const raw = await issueToken(user._id, "reset_password");
+    await sendResetPasswordEmail(user.email, `${env.appUrl}/reset-password?token=${raw}`);
+  }
+
+  return res.sendStatus(204);
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  const record = await consumeToken(token, "reset_password");
+  if (!record) {
+    throw badRequest("Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await User.updateOne(
+    { _id: record.userId },
+    {
+      hashedPassword,
+      // Bấm được link trong hòm thư đã chứng minh quyền sở hữu email, nên không
+      // bắt xác minh thêm một lần nữa.
+      emailVerifiedAt: new Date(),
+    }
+  );
+
+  // Đá mọi thiết bị đang đăng nhập. Nếu tài khoản đang bị chiếm, đây là thứ cắt
+  // được quyền truy cập của kẻ kia - đổi mật khẩu không thôi thì không đủ, vì
+  // refresh token của họ vẫn còn hiệu lực.
+  await Session.deleteMany({ userId: record.userId });
+
+  return res.sendStatus(204);
+});
+
 export const resendVerifyEmail = asyncHandler(async (req, res) => {
   if (req.user.emailVerifiedAt) {
     throw conflict("Email này đã được xác minh");

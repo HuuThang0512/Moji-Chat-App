@@ -6,9 +6,17 @@ import {
   refreshToken,
   verifyEmail,
   resendVerifyEmail,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/authController.js";
 import { validateBody } from "../middlewares/validateMiddleware.js";
-import { signInSchema, signUpSchema, verifyEmailSchema } from "../utils/schemas.js";
+import {
+  signInSchema,
+  signUpSchema,
+  verifyEmailSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "../utils/schemas.js";
 import { authLimiter, mailLimiter } from "../middlewares/rateLimitMiddleware.js";
 import { protectedRoute } from "../middlewares/authMiddleware.js";
 import { env } from "../config/env.js";
@@ -27,6 +35,9 @@ router.post("/verify-email", authLimiter, validateBody(verifyEmailSchema), verif
 // protectedRoute gắn riêng cho route này vì cả authRoute nằm trước tầng bảo vệ
 // chung trong server.js.
 router.post("/verify-email/resend", protectedRoute, mailLimiter, resendVerifyEmail);
+
+router.post("/forgot-password", mailLimiter, validateBody(forgotPasswordSchema), forgotPassword);
+router.post("/reset-password", authLimiter, validateBody(resetPasswordSchema), resetPassword);
 
 /**
  * Chỉ dành cho test tự động: trả token thô mà bình thường chỉ nằm trong email.

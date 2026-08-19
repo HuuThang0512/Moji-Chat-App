@@ -129,6 +129,56 @@ console.log("\n== Xac minh email ==");
   check("gui lai khi chua dang nhap -> 401", anon.status === 401, JSON.stringify(anon.data));
 }
 
+console.log("\n== Quen mat khau ==");
+{
+  const bobEmail = `${bob.username}@example.com`;
+
+  // Giu lai cookie phien hien tai cua bob de kiem tra no bi vo hieu sau khi doi
+  // mat khau. Phai copy truoc, vi bob se dang nhap lai o cuoi khoi nay.
+  const phienCu = new Client("bob_cu");
+  phienCu.cookie = bob.cookie;
+
+  const ghost = await new Client("anon").req("POST", "/auth/forgot-password",
+    { email: `khongtontai_${stamp}@example.com` });
+  check("email khong ton tai -> van 204", ghost.status === 204, JSON.stringify(ghost.data));
+
+  const asked = await new Client("anon").req("POST", "/auth/forgot-password", { email: bobEmail });
+  check("yeu cau doi mat khau -> 204", asked.status === 204, JSON.stringify(asked.data));
+
+  const raw = await devToken(bobEmail, "reset_password");
+  check("co token dat lai mat khau", Boolean(raw));
+
+  const badToken = await new Client("anon").req("POST", "/auth/reset-password",
+    { token: "bia-dat", password: "matkhaumoi456" });
+  check("token bia -> 400", badToken.status === 400, JSON.stringify(badToken.data));
+
+  const done = await new Client("anon").req("POST", "/auth/reset-password",
+    { token: raw, password: "matkhaumoi456" });
+  check("dat lai mat khau -> 204", done.status === 204, JSON.stringify(done.data));
+
+  const reuse = await new Client("anon").req("POST", "/auth/reset-password",
+    { token: raw, password: "matkhaukhac789" });
+  check("dung lai token lan hai -> 400", reuse.status === 400, JSON.stringify(reuse.data));
+
+  const oldPw = await new Client("anon").req("POST", "/auth/signin",
+    { username: bob.username, password: "secret123" });
+  check("dang nhap mat khau cu -> 401", oldPw.status === 401, JSON.stringify(oldPw.data));
+
+  const oldRefresh = await phienCu.req("POST", "/auth/refresh", {});
+  check("phien cu bi vo hieu -> 401", oldRefresh.status === 401, JSON.stringify(oldRefresh.data));
+
+  const newPw = await new Client("anon").req("POST", "/auth/signin",
+    { username: bob.username, password: "matkhaumoi456" });
+  check("dang nhap mat khau moi -> 200", newPw.status === 200 && !!newPw.data?.accessToken,
+    JSON.stringify(newPw.data));
+
+  check("dat lai mat khau xac minh email luon",
+    Boolean(newPw.data?.user?.emailVerifiedAt), JSON.stringify(newPw.data?.user?.emailVerifiedAt));
+
+  // Cap nhat lai token va cookie cho cac khoi test phia sau van dung bob.
+  bob.token = newPw.data?.accessToken;
+}
+
 console.log("\n== Friends ==");
 {
   const search = await alice.req("GET", `/users/search?username=${bob.username}`);

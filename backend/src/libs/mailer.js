@@ -10,6 +10,20 @@ const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
  * thì không, và không phải thêm thư viện nào - fetch có sẵn trong Node 20.
  */
 const send = async ({ to, subject, html }) => {
+  /**
+   * Máy dev chưa có khoá Brevo thì in ra console thay vì gửi thật, để lập trình
+   * viên và smoke.mjs vẫn chạy hết được luồng.
+   *
+   * Chỉ mở ở đây khi env.exposeMailTokens bật - biến đó đã đòi cả cờ lẫn
+   * NODE_ENV khác production, nên production thiếu cấu hình vẫn trả 503 chứ
+   * không âm thầm nuốt mail.
+   */
+  if (!isMailerConfigured && env.exposeMailTokens) {
+    const link = html.match(/href="([^"]+)"/)?.[1];
+    console.log(`[mail-dev] gui toi ${to} | ${subject}\n[mail-dev] link: ${link}`);
+    return;
+  }
+
   if (!isMailerConfigured) {
     throw new AppError(503, "Chức năng gửi email chưa được cấu hình");
   }
