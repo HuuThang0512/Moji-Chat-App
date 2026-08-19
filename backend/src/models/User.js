@@ -35,6 +35,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxLength: 500,
     },
+    /** Thời điểm người dùng bấm link xác minh. Rỗng nghĩa là chưa xác minh. */
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
     phone: {
       type: String,
       sparse: true, // Có thể để trống nhưng khi nhập thì không được nhập trùng
