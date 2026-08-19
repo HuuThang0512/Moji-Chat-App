@@ -31,6 +31,30 @@ export const env = {
     apiKey: process.env.CLOUDINARY_API_KEY,
     apiSecret: process.env.CLOUDINARY_API_SECRET,
   },
+  mail: {
+    apiKey: process.env.BREVO_API_KEY,
+    from: process.env.MAIL_FROM,
+    fromName: process.env.MAIL_FROM_NAME || "Moji",
+  },
+
+  /**
+   * Gốc URL để dựng link trong email.
+   * Render tự đặt RENDER_EXTERNAL_URL nên production không phải cấu hình gì thêm.
+   * Cắt dấu / ở cuối để nối chuỗi không ra hai dấu gạch liền nhau.
+   */
+  appUrl: (
+    process.env.APP_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.CLIENT_URL ||
+    "http://localhost:5173"
+  ).replace(/\/$/, ""),
+
+  /**
+   * Mở endpoint đọc token dành cho test tự động.
+   * Điều kiện kép ngay tại đây: dù có đặt cờ, production vẫn luôn tắt.
+   */
+  exposeMailTokens:
+    process.env.EXPOSE_MAIL_TOKENS === "1" && process.env.NODE_ENV !== "production",
 };
 
 export const isCloudinaryConfigured = Boolean(
@@ -40,5 +64,13 @@ export const isCloudinaryConfigured = Boolean(
 if (!isCloudinaryConfigured) {
   console.warn(
     "Cloudinary chưa được cấu hình - chức năng upload avatar sẽ trả về lỗi 503."
+  );
+}
+
+export const isMailerConfigured = Boolean(env.mail.apiKey && env.mail.from);
+
+if (!isMailerConfigured) {
+  console.warn(
+    "Chưa cấu hình gửi mail - xác minh email và khôi phục mật khẩu sẽ trả về 503."
   );
 }
