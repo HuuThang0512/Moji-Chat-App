@@ -4,7 +4,9 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Session from "../models/Session.js";
 import { env } from "../config/env.js";
-import { asyncHandler, conflict, unauthorized } from "../utils/AppError.js";
+import { asyncHandler, badRequest, conflict, unauthorized } from "../utils/AppError.js";
+import { issueToken, consumeToken } from "../utils/tokenHelper.js";
+import { sendVerifyEmail, sendResetPasswordEmail } from "../libs/mailer.js";
 
 const ACCESS_TOKEN_TTL = "30m";
 const REFRESH_TOKEN_TTL = 14 * 24 * 60 * 60 * 1000;
@@ -38,6 +40,7 @@ const publicUser = (user) => ({
   displayName: user.displayName,
   avatarUrl: user.avatarUrl,
   bio: user.bio,
+  emailVerifiedAt: user.emailVerifiedAt,
   phone: user.phone,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
@@ -60,12 +63,49 @@ export const signUp = asyncHandler(async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  await User.create({
+  const user = await User.create({
     username,
     hashedPassword,
     email,
     displayName: `${firstName} ${lastName}`,
   });
+
+  /**
+   * Gửi mail xác minh kiểu "bắn rồi quên".
+   * Hòm thư sai, Brevo chết hay chưa cấu hình khoá đều không được làm hỏng việc
+   * đăng ký - người dùng vẫn vào được app, chỉ là banner nhắc xác minh còn đó và
+   * họ bấm "gửi lại" sau.
+   */
+  try {
+    const raw = await issueToken(user._id, "verify_email");
+    await sendVerifyEmail(user.email, `${env.appUrl}/verify-email?token=${raw}`);
+  } catch (error) {
+    console.error("Không gửi được mail xác minh:", error.message);
+  }
+
+  return res.sendStatus(204);
+});
+
+export const verifyEmail = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  const record = await consumeToken(token, "verify_email");
+  if (!record) {
+    throw badRequest("Link xác minh không hợp lệ hoặc đã hết hạn");
+  }
+
+  await User.updateOne({ _id: record.userId }, { emailVerifiedAt: new Date() });
+
+  return res.sendStatus(204);
+});
+
+export const resendVerifyEmail = asyncHandler(async (req, res) => {
+  if (req.user.emailVerifiedAt) {
+    throw conflict("Email này đã được xác minh");
+  }
+
+  const raw = await issueToken(req.user._id, "verify_email");
+  await sendVerifyEmail(req.user.email, `${env.appUrl}/verify-email?token=${raw}`);
 
   return res.sendStatus(204);
 });

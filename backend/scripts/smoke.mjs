@@ -88,6 +88,47 @@ const mallory = await makeUser("mallory");
   check("refresh khong cookie -> 401", noCookie.status === 401);
 }
 
+/**
+ * Doc token tho ma binh thuong chi nam trong email.
+ * Chi chay duoc khi server bat EXPOSE_MAIL_TOKENS=1 va khong phai production.
+ */
+const devToken = async (email, type) => {
+  const res = await new Client("anon").req(
+    "GET",
+    `/auth/__dev/last-token?email=${encodeURIComponent(email)}&type=${type}`
+  );
+  return res.data?.token ?? null;
+};
+
+console.log("\n== Xac minh email ==");
+{
+  const me1 = await alice.req("GET", "/users/me");
+  check("dang ky xong -> chua xac minh", me1.data?.user?.emailVerifiedAt == null,
+    JSON.stringify(me1.data?.user?.emailVerifiedAt));
+
+  const raw = await devToken(`${alice.username}@example.com`, "verify_email");
+  check("signup co sinh token xac minh", Boolean(raw));
+
+  const bad = await alice.req("POST", "/auth/verify-email", { token: "khong-ton-tai" });
+  check("token bia -> 400", bad.status === 400, JSON.stringify(bad.data));
+
+  const ok = await alice.req("POST", "/auth/verify-email", { token: raw });
+  check("token dung -> 204", ok.status === 204, JSON.stringify(ok.data));
+
+  const me2 = await alice.req("GET", "/users/me");
+  check("sau xac minh -> emailVerifiedAt co gia tri",
+    Boolean(me2.data?.user?.emailVerifiedAt), JSON.stringify(me2.data?.user?.emailVerifiedAt));
+
+  const again = await alice.req("POST", "/auth/verify-email", { token: raw });
+  check("dung lai token lan hai -> 400", again.status === 400, JSON.stringify(again.data));
+
+  const resend = await alice.req("POST", "/auth/verify-email/resend", {});
+  check("gui lai khi da xac minh -> 409", resend.status === 409, JSON.stringify(resend.data));
+
+  const anon = await new Client("anon").req("POST", "/auth/verify-email/resend", {});
+  check("gui lai khi chua dang nhap -> 401", anon.status === 401, JSON.stringify(anon.data));
+}
+
 console.log("\n== Friends ==");
 {
   const search = await alice.req("GET", `/users/search?username=${bob.username}`);
