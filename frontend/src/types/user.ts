@@ -14,6 +14,8 @@ export interface User {
   avatarUrl?: string;
   bio?: string;
   phone?: string;
+  /** Rỗng nghĩa là chưa xác minh email - dùng để quyết định hiện banner nhắc. */
+  emailVerifiedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   relationship?: FriendRelationship;

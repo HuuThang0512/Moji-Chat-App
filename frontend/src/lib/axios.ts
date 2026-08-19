@@ -6,8 +6,20 @@ const api = axios.create({
   withCredentials: true, // Để gửi cookie refreshToken đến backend
 });
 
-/** Những route không bao giờ được thử refresh, tránh vòng lặp vô hạn. */
-const NO_REFRESH_PATHS = ["/auth/signin", "/auth/signup", "/auth/refresh", "/auth/signout"];
+/**
+ * Những route không bao giờ được thử refresh, tránh vòng lặp vô hạn.
+ * Ba route cuối là trang công khai, người chưa đăng nhập gọi vào; không loại trừ
+ * thì mỗi lỗi 401 lại kích hoạt một vòng refresh vô ích rồi đá về /signin.
+ */
+const NO_REFRESH_PATHS = [
+  "/auth/signin",
+  "/auth/signup",
+  "/auth/refresh",
+  "/auth/signout",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email",
+];
 
 type RetriableConfig = AxiosRequestConfig & { _retried?: boolean; url?: string };
 

@@ -43,4 +43,21 @@ export const authService = {
     const res = await api.post("/auth/refresh", {});
     return res.data;
   },
+
+  /** Backend luôn trả 204 kể cả email không tồn tại, để không lộ ai đã đăng ký. */
+  forgotPassword: async (email: string) => {
+    await api.post("/auth/forgot-password", { email });
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    await api.post("/auth/reset-password", { token, password });
+  },
+
+  verifyEmail: async (token: string) => {
+    await api.post("/auth/verify-email", { token });
+  },
+
+  resendVerifyEmail: async () => {
+    await api.post("/auth/verify-email/resend", {});
+  },
 };

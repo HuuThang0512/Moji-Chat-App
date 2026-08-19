@@ -75,7 +75,15 @@ export function SignInForm({
               </div>
               {/* Password */}
               <div className="flex flex-col gap-3">
-                <Label>Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Password</Label>
+                  <a
+                    href="/forgot-password"
+                    className="text-muted-foreground hover:text-primary text-sm underline-offset-4 hover:underline"
+                  >
+                    Quên mật khẩu?
+                  </a>
+                </div>
                 <Input
                   type="password"
                   placeholder="Password"
